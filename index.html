@@ -13,7 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:#07070F;font-family:'Courier New',Courier,monospace;color:#DDD;overflow-x:hidden;}
+body{background:#07070F;font-family:'Courier New',Courier,monospace;color:#E0E0E0;overflow-x:hidden;}
 ::-webkit-scrollbar{display:none;}
 select option{background:#0C0B1A;}
 @keyframes popIn{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
@@ -32,12 +32,12 @@ const SUPA_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
 
 const RANKS=[
-  {rank:"E",color:"#888888",glow:"#88888840",title:"Rookie Trader",xpRequired:0},
-  {rank:"D",color:"#4FC3F7",glow:"#4FC3F740",title:"Iron Analyst",xpRequired:200},
-  {rank:"C",color:"#81C784",glow:"#81C78440",title:"Bronze Hunter",xpRequired:500},
-  {rank:"B",color:"#FFB74D",glow:"#FFB74D40",title:"Silver Executor",xpRequired:1000},
-  {rank:"A",color:"#CE93D8",glow:"#CE93D840",title:"Gold Strategist",xpRequired:2000},
-  {rank:"S",color:"#FFD700",glow:"#FFD70060",title:"Shadow Monarch",xpRequired:4000},
+  {rank:"E",icon:"🪨",color:"#AAAAAA",glow:"#AAAAAA40",title:"Rookie Trader",xpRequired:0},
+  {rank:"D",icon:"⚔️",color:"#4FC3F7",glow:"#4FC3F740",title:"Iron Analyst",xpRequired:200},
+  {rank:"C",icon:"🛡️",color:"#81C784",glow:"#81C78440",title:"Bronze Hunter",xpRequired:500},
+  {rank:"B",icon:"🌙",color:"#FFB74D",glow:"#FFB74D40",title:"Silver Executor",xpRequired:1000},
+  {rank:"A",icon:"👑",color:"#CE93D8",glow:"#CE93D840",title:"Gold Strategist",xpRequired:2000},
+  {rank:"S",icon:"🔱",color:"#FFD700",glow:"#FFD70060",title:"Shadow Monarch",xpRequired:4000},
 ];
 const XP_VAL={pretrade:50,streak:30,journal:20,trade:10,mood:5,quest:75};
 
@@ -197,6 +197,7 @@ function AuthScreen({onAuth}){
   const[loading,setLoading]=useState(false);
   const[error,setError]=useState("");
   const[success,setSuccess]=useState("");
+  const[showPw,setShowPw]=useState(false);
 
   const handle=async()=>{
     setError("");setSuccess("");
@@ -222,9 +223,7 @@ function AuthScreen({onAuth}){
     finally{setLoading(false);}
   };
 
-  const Inp2=({...p})=>(
-    <input {...p} style={{background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:"12px 14px",color:"#CCC",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",marginBottom:10}}/>
-  );
+  const inp2Style={background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:"12px 14px",color:"#CCC",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",marginBottom:10};
 
   return(
     <div style={{minHeight:"100vh",background:bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -233,17 +232,27 @@ function AuthScreen({onAuth}){
           <div style={{fontSize:9,letterSpacing:6,color:"#333",marginBottom:6}}>PROP TRADER OS</div>
           <div style={{fontSize:26,fontWeight:900,letterSpacing:4,color:"#EEE",marginBottom:4}}>TRADING SYSTEM</div>
           <div style={{fontSize:10,color:"#444",letterSpacing:2}}>SOLO LEVELLING EDITION</div>
-          <div style={{display:"flex",justifyContent:"center",gap:8,marginTop:12}}>
-            {RANKS.map(r=><span key={r.rank} style={{fontSize:14,fontWeight:900,color:r.color,textShadow:`0 0 8px ${r.color}60`}}>{r.rank}</span>)}
+          <div style={{display:"flex",justifyContent:"center",gap:12,marginTop:14}}>
+            {RANKS.map(r=>(
+              <div key={r.rank} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                <span style={{fontSize:18}}>{r.icon}</span>
+                <span style={{fontSize:11,fontWeight:900,color:r.color,textShadow:`0 0 8px ${r.color}80`,letterSpacing:1}}>{r.rank}</span>
+              </div>
+            ))}
           </div>
         </div>
         <div style={{background:card,border:`1px solid ${bdr}`,borderRadius:8,padding:"28px 24px"}}>
           <div style={{fontSize:10,color:"#444",letterSpacing:3,marginBottom:20,textAlign:"center"}}>
             {mode==="login"?"SIGN IN TO YOUR ACCOUNT":mode==="signup"?"CREATE YOUR ACCOUNT":"RESET PASSWORD"}
           </div>
-          {mode==="signup"&&<Inp2 type="text" placeholder="Your name (optional)" value={name} onChange={e=>setName(e.target.value)}/>}
-          <Inp2 type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>
-          {mode!=="reset"&&<Inp2 type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>}
+          {mode==="signup"&&<input type="text" placeholder="Your name (optional)" value={name} onChange={e=>setName(e.target.value)} style={inp2Style}/>}
+          <input type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()} style={inp2Style}/>
+          {mode!=="reset"&&<div style={{position:"relative",marginBottom:0}}>
+            <input type={showPw?"text":"password"} placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()} style={{...inp2Style,marginBottom:10,paddingRight:40}}/>
+            <button onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-60%)",background:"transparent",border:"none",cursor:"pointer",color:"#555",fontSize:14,padding:0,lineHeight:1}}>
+              {showPw?"🙈":"👁️"}
+            </button>
+          </div>}
           {error&&<div style={{fontSize:11,color:"#FF4D6D",marginBottom:10,padding:"8px 10px",background:"#FF4D6D10",borderRadius:4,border:"1px solid #FF4D6D30"}}>{error}</div>}
           {success&&<div style={{fontSize:11,color:"#A8FF78",marginBottom:10,padding:"8px 10px",background:"#A8FF7810",borderRadius:4,border:"1px solid #A8FF7830"}}>{success}</div>}
           <button onClick={handle} disabled={loading} style={{width:"100%",padding:"13px 0",borderRadius:4,cursor:loading?"not-allowed":"pointer",background:loading?"#0A0918":"#9B6DFF15",border:`1px solid ${loading?"#1A1830":"#9B6DFF50"}`,color:loading?"#333":"#9B6DFF",fontSize:12,fontWeight:700,letterSpacing:2,fontFamily:"inherit",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
@@ -497,10 +506,10 @@ function TraderApp({user,onLogout}){
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
               <div style={{display:"flex",alignItems:"center",gap:8,background:`${rc}12`,border:`1px solid ${rc}50`,boxShadow:`0 0 16px ${rank.cur.glow}`,borderRadius:4,padding:"5px 10px",cursor:"pointer"}} onClick={()=>setShowLogout(true)}>
-                <div style={{fontSize:20,fontWeight:900,color:rc,textShadow:`0 0 12px ${rc}`}}>{rank.cur.rank}</div>
+                <span style={{fontSize:18}}>{rank.cur.icon}</span>
                 <div>
-                  <div style={{fontSize:9,color:rc,fontWeight:700,letterSpacing:2}}>{rank.cur.title}</div>
-                  <div style={{fontSize:8,color:"#555",letterSpacing:1}}>LV.{rank.lv} · {xp} XP</div>
+                  <div style={{fontSize:10,color:rc,fontWeight:700,letterSpacing:1}}>{rank.cur.rank} · {rank.cur.title}</div>
+                  <div style={{fontSize:9,color:"#777",letterSpacing:1}}>LV.{rank.lv} · {xp} XP</div>
                 </div>
               </div>
               <div style={{fontSize:8,color:syncError?"#FF4D6D":syncing?"#FFD60A":"#444",letterSpacing:1}}>
@@ -516,7 +525,12 @@ function TraderApp({user,onLogout}){
               <div style={{height:"100%",width:`${rank.pct}%`,background:`linear-gradient(90deg,${rc}88,${rc})`,boxShadow:`0 0 8px ${rc}`,transition:"width .6s ease",borderRadius:2}}/>
             </div>
             <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
-              {RANKS.map(r=><span key={r.rank} style={{fontSize:8,color:xp>=r.xpRequired?r.color:"#2A2840",fontWeight:700}}>{r.rank}</span>)}
+              {RANKS.map(r=>(
+                <div key={r.rank} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                  <span style={{fontSize:10}}>{r.icon}</span>
+                  <span style={{fontSize:8,color:xp>=r.xpRequired?r.color:"#2A2840",fontWeight:700}}>{r.rank}</span>
+                </div>
+              ))}
             </div>
           </div>
           <div style={{display:"flex",overflowX:"auto",scrollbarWidth:"none"}}>
