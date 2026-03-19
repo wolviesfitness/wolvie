@@ -10,19 +10,26 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  body{background:#07070F;font-family:'Courier New',Courier,monospace;color:#DDD;overflow-x:hidden;}
-  ::-webkit-scrollbar{display:none;}
-  select option{background:#0C0B1A;}
-  @keyframes popIn{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
-  @keyframes shimmer{0%,100%{opacity:1}50%{opacity:.6}}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:#07070F;font-family:'Courier New',Courier,monospace;color:#DDD;overflow-x:hidden;}
+::-webkit-scrollbar{display:none;}
+select option{background:#0C0B1A;}
+@keyframes popIn{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.6}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const{useState,useEffect,useRef}=React;
+const{useState,useEffect,useRef,useCallback}=React;
+
+const SUPA_URL="https://fmautkjkvksjhcuvzraz.supabase.co";
+const SUPA_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtYXV0a2prdmtzamhjdXZ6cmF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTU1ODcsImV4cCI6MjA4OTQ5MTU4N30.2jvGzaKxz2bS6TC7i92a-cz6KNPwr20NnBH5O1W5uo4";
+const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
 
 const RANKS=[
   {rank:"E",color:"#888888",glow:"#88888840",title:"Rookie Trader",xpRequired:0},
@@ -33,7 +40,6 @@ const RANKS=[
   {rank:"S",color:"#FFD700",glow:"#FFD70060",title:"Shadow Monarch",xpRequired:4000},
 ];
 const XP_VAL={pretrade:50,streak:30,journal:20,trade:10,mood:5,quest:75};
-const STORAGE_KEY="prop-trader-os-v1";
 
 function getRank(xp){
   let ri=0;
@@ -61,11 +67,8 @@ const PRE_ITEMS=[
   {id:"pt11",p:"medium",text:"Trading my normal size? Not gambling to recover or accelerate."},
   {id:"pt12",p:"medium",text:"Is my stop loss placement locked? I will NOT move it."},
 ];
-const PC={
-  critical:{color:"#FF4D6D",label:"CRITICAL"},
-  high:{color:"#FFD60A",label:"HIGH"},
-  medium:{color:"#9B6DFF",label:"MEDIUM"},
-};
+const PC={critical:{color:"#FF4D6D",label:"CRITICAL"},high:{color:"#FFD60A",label:"HIGH"},medium:{color:"#9B6DFF",label:"MEDIUM"}};
+
 const RULES_CATS=[
   {id:"risk",label:"Risk Management",icon:"🛡️",color:"#FF6B35",items:[
     {id:11,text:"Risk 0.25%–0.5% per trade. No more."},
@@ -130,6 +133,7 @@ const RULES_CATS=[
     {id:106,trap:"Bonus — Daily Journal Question",text:"Every night: 'Did I follow my rules today?' YES = Success. NO = Failure."},
   ]},
 ];
+
 const DAILY_QUESTS=[
   {id:"q1",icon:"✅",label:"Complete Pre-Trade Checklist",xp:75,key:"preComplete"},
   {id:"q2",icon:"📝",label:"Save a Journal Entry",xp:50,key:"journalToday"},
@@ -137,6 +141,7 @@ const DAILY_QUESTS=[
   {id:"q4",icon:"🧠",label:"Log Your Mood Before Trading",xp:25,key:"moodToday"},
   {id:"q5",icon:"🔥",label:"Maintain Your Discipline Streak",xp:60,key:"streakActive"},
 ];
+
 const PAIRS=["XAUUSD","EURUSD","GBPUSD","USDJPY","NAS100","US30","BTCUSD","ETHUSD","Other"];
 const MOODS=[
   {v:1,label:"Tilted",color:"#FF4D6D",icon:"😤"},
@@ -145,9 +150,12 @@ const MOODS=[
   {v:4,label:"Focused",color:"#4FC3F7",icon:"😎"},
   {v:5,label:"In the Zone",color:"#FFD700",icon:"🔥"},
 ];
+const DEFAULT_CRITERIA=["Higher timeframe trend confirmed","Price in OB or FVG zone","RR minimum 1:2","Entry candle confirmation","No news in next 30 mins"];
+const bg="#07070F",card="#0C0B1A",bdr="#1A1830";
 
-function load(key,def){try{const v=localStorage.getItem(STORAGE_KEY);if(v){const d=JSON.parse(v);return d[key]!==undefined?d[key]:def;}return def;}catch{return def;}}
-function save(key,val){try{const v=localStorage.getItem(STORAGE_KEY);const d=v?JSON.parse(v):{};d[key]=val;localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}catch{}}
+const Spinner=({color="#9B6DFF"})=>(
+  <div style={{width:36,height:36,border:`3px solid ${color}30`,borderTop:`3px solid ${color}`,borderRadius:"50%",animation:"spin 1s linear infinite"}}/>
+);
 
 function Popup({popup,onClose}){
   useEffect(()=>{if(!popup)return;const t=setTimeout(onClose,4500);return()=>clearTimeout(t);},[popup]);
@@ -181,6 +189,78 @@ function Popup({popup,onClose}){
   );
 }
 
+function AuthScreen({onAuth}){
+  const[mode,setMode]=useState("login");
+  const[email,setEmail]=useState("");
+  const[password,setPassword]=useState("");
+  const[name,setName]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState("");
+  const[success,setSuccess]=useState("");
+
+  const handle=async()=>{
+    setError("");setSuccess("");
+    if(!email||(!password&&mode!=="reset")){setError("Please fill in all fields.");return;}
+    if(mode==="signup"&&password.length<6){setError("Password must be at least 6 characters.");return;}
+    setLoading(true);
+    try{
+      if(mode==="login"){
+        const{data,error:e}=await sb.auth.signInWithPassword({email,password});
+        if(e)throw e;
+        onAuth(data.user);
+      }else if(mode==="signup"){
+        const{error:e}=await sb.auth.signUp({email,password,options:{data:{name:name||email.split("@")[0]}}});
+        if(e)throw e;
+        setSuccess("Account created! You can now log in.");
+        setMode("login");
+      }else{
+        const{error:e}=await sb.auth.resetPasswordForEmail(email);
+        if(e)throw e;
+        setSuccess("Password reset email sent. Check your inbox.");
+      }
+    }catch(e){setError(e.message||"Something went wrong.");}
+    finally{setLoading(false);}
+  };
+
+  const Inp2=({...p})=>(
+    <input {...p} style={{background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:"12px 14px",color:"#CCC",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",marginBottom:10}}/>
+  );
+
+  return(
+    <div style={{minHeight:"100vh",background:bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{width:"100%",maxWidth:380,animation:"fadeIn .4s ease"}}>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{fontSize:9,letterSpacing:6,color:"#333",marginBottom:6}}>PROP TRADER OS</div>
+          <div style={{fontSize:26,fontWeight:900,letterSpacing:4,color:"#EEE",marginBottom:4}}>TRADING SYSTEM</div>
+          <div style={{fontSize:10,color:"#444",letterSpacing:2}}>SOLO LEVELLING EDITION</div>
+          <div style={{display:"flex",justifyContent:"center",gap:8,marginTop:12}}>
+            {RANKS.map(r=><span key={r.rank} style={{fontSize:14,fontWeight:900,color:r.color,textShadow:`0 0 8px ${r.color}60`}}>{r.rank}</span>)}
+          </div>
+        </div>
+        <div style={{background:card,border:`1px solid ${bdr}`,borderRadius:8,padding:"28px 24px"}}>
+          <div style={{fontSize:10,color:"#444",letterSpacing:3,marginBottom:20,textAlign:"center"}}>
+            {mode==="login"?"SIGN IN TO YOUR ACCOUNT":mode==="signup"?"CREATE YOUR ACCOUNT":"RESET PASSWORD"}
+          </div>
+          {mode==="signup"&&<Inp2 type="text" placeholder="Your name (optional)" value={name} onChange={e=>setName(e.target.value)}/>}
+          <Inp2 type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>
+          {mode!=="reset"&&<Inp2 type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>}
+          {error&&<div style={{fontSize:11,color:"#FF4D6D",marginBottom:10,padding:"8px 10px",background:"#FF4D6D10",borderRadius:4,border:"1px solid #FF4D6D30"}}>{error}</div>}
+          {success&&<div style={{fontSize:11,color:"#A8FF78",marginBottom:10,padding:"8px 10px",background:"#A8FF7810",borderRadius:4,border:"1px solid #A8FF7830"}}>{success}</div>}
+          <button onClick={handle} disabled={loading} style={{width:"100%",padding:"13px 0",borderRadius:4,cursor:loading?"not-allowed":"pointer",background:loading?"#0A0918":"#9B6DFF15",border:`1px solid ${loading?"#1A1830":"#9B6DFF50"}`,color:loading?"#333":"#9B6DFF",fontSize:12,fontWeight:700,letterSpacing:2,fontFamily:"inherit",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+            {loading&&<Spinner color="#9B6DFF"/>}
+            {loading?"LOADING...":(mode==="login"?"ENTER THE SYSTEM":mode==="signup"?"BEGIN YOUR JOURNEY":"SEND RESET EMAIL")}
+          </button>
+          <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:16}}>
+            {mode!=="login"&&<button onClick={()=>{setMode("login");setError("");setSuccess("");}} style={{background:"transparent",border:"none",color:"#555",fontSize:10,cursor:"pointer",letterSpacing:1,fontFamily:"inherit"}}>← SIGN IN</button>}
+            {mode!=="signup"&&<button onClick={()=>{setMode("signup");setError("");setSuccess("");}} style={{background:"transparent",border:"none",color:"#555",fontSize:10,cursor:"pointer",letterSpacing:1,fontFamily:"inherit"}}>CREATE ACCOUNT</button>}
+            {mode!=="reset"&&<button onClick={()=>{setMode("reset");setError("");setSuccess("");}} style={{background:"transparent",border:"none",color:"#555",fontSize:10,cursor:"pointer",letterSpacing:1,fontFamily:"inherit"}}>FORGOT PASSWORD</button>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function useTimer(initSecs){
   const[secs,setSecs]=useState(initSecs);
   const[running,setRunning]=useState(false);
@@ -194,64 +274,93 @@ function useTimer(initSecs){
   return{secs,running,setRunning,setSecs,fmt,reset:v=>{setSecs(v);setRunning(false);}};
 }
 
-function App(){
+function TraderApp({user,onLogout}){
   const today=new Date().toLocaleDateString();
   const weekKey=(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());return d.toLocaleDateString();})();
-
+  const[loading,setLoading]=useState(true);
+  const[syncing,setSyncing]=useState(false);
+  const[syncError,setSyncError]=useState(false);
   const[tab,setTab]=useState("pretrade");
-  const[xp,setXp]=useState(()=>load("xp",0));
+  const[xp,setXp]=useState(0);
   const[popup,setPopup]=useState(null);
-  const[checked,setChecked]=useState(()=>load("checked",{}));
-  const[preXPGiven,setPreXPGiven]=useState(()=>load("preXPGiven",false));
+  const[checked,setChecked]=useState({});
+  const[preXPGiven,setPreXPGiven]=useState(false);
   const[showReset,setShowReset]=useState(false);
-  const[rulesChecked,setRulesChecked]=useState(()=>load("rulesChecked",{}));
+  const[rulesChecked,setRulesChecked]=useState({});
   const[activeCat,setActiveCat]=useState("risk");
-  const[streak,setStreak]=useState(()=>load("streak",{days:0,history:[]}));
+  const[streak,setStreak]=useState({days:0,history:[]});
   const[journal,setJournal]=useState({followedRules:null,brokenRules:[],note:""});
-  const[journals,setJournals]=useState(()=>load("journals",[]));
-  const[journalToday,setJournalToday]=useState(()=>load("journalToday",false));
-  const[trades,setTrades]=useState(()=>load("trades",[]));
+  const[journals,setJournals]=useState([]);
+  const[journalToday,setJournalToday]=useState(false);
+  const[trades,setTrades]=useState([]);
   const[tradeForm,setTradeForm]=useState({pair:"XAUUSD",dir:"Long",rr:"",outcome:"Win",note:""});
-  const[tradeToday,setTradeToday]=useState(()=>load("tradeToday",false));
-  const[moods,setMoods]=useState(()=>load("moods",[]));
-  const[moodToday,setMoodToday]=useState(()=>load("moodToday",false));
-  const[dd,setDd]=useState(()=>load("dd",{balance:"",dailyLimit:"",currentLoss:""}));
-  const[criteria,setCriteria]=useState(()=>load("criteria",["Higher timeframe trend confirmed","Price in OB or FVG zone","RR minimum 1:2","Entry candle confirmation","No news in next 30 mins"]));
+  const[tradeToday,setTradeToday]=useState(false);
+  const[moods,setMoods]=useState([]);
+  const[moodToday,setMoodToday]=useState(false);
+  const[dd,setDd]=useState({balance:"",dailyLimit:"",currentLoss:""});
+  const[criteria,setCriteria]=useState(DEFAULT_CRITERIA);
   const[newCrit,setNewCrit]=useState("");
   const[edgeChecked,setEdgeChecked]=useState({});
-  const[questXPGiven,setQuestXPGiven]=useState(()=>load("questXPGiven",{}));
+  const[questXPGiven,setQuestXPGiven]=useState({});
+  const[showLogout,setShowLogout]=useState(false);
   const session=useTimer(7200);
   const revenge=useTimer(3600);
+  const saveTimeout=useRef(null);
 
-  // persist on change
-  useEffect(()=>save("xp",xp),[xp]);
-  useEffect(()=>save("checked",checked),[checked]);
-  useEffect(()=>save("preXPGiven",preXPGiven),[preXPGiven]);
-  useEffect(()=>save("rulesChecked",rulesChecked),[rulesChecked]);
-  useEffect(()=>save("streak",streak),[streak]);
-  useEffect(()=>save("journals",journals),[journals]);
-  useEffect(()=>save("journalToday",journalToday),[journalToday]);
-  useEffect(()=>save("trades",trades),[trades]);
-  useEffect(()=>save("tradeToday",tradeToday),[tradeToday]);
-  useEffect(()=>save("moods",moods),[moods]);
-  useEffect(()=>save("moodToday",moodToday),[moodToday]);
-  useEffect(()=>save("dd",dd),[dd]);
-  useEffect(()=>save("criteria",criteria),[criteria]);
-  useEffect(()=>save("questXPGiven",questXPGiven),[questXPGiven]);
+  useEffect(()=>{
+    async function load(){
+      try{
+        const{data,error}=await sb.from("trader_data").select("*").eq("user_id",user.id).single();
+        if(error&&error.code==="PGRST116"){
+          await sb.from("trader_data").insert({user_id:user.id,criteria:DEFAULT_CRITERIA});
+        }else if(data){
+          setXp(data.xp||0);
+          setChecked(data.checked||{});
+          setPreXPGiven(data.pre_xp_given||false);
+          setRulesChecked(data.rules_checked||{});
+          setStreak(data.streak||{days:0,history:[]});
+          setJournals(data.journals||[]);
+          setJournalToday(data.journal_today||false);
+          setTrades(data.trades||[]);
+          setTradeToday(data.trade_today||false);
+          setMoods(data.moods||[]);
+          setMoodToday(data.mood_today||false);
+          setDd(data.dd||{balance:"",dailyLimit:"",currentLoss:""});
+          setCriteria(data.criteria&&data.criteria.length>0?data.criteria:DEFAULT_CRITERIA);
+          setQuestXPGiven(data.quest_xp_given||{});
+        }
+      }catch(e){console.error(e);setSyncError(true);}
+      finally{setLoading(false);}
+    }
+    load();
+  },[user.id]);
 
-  const addXP=(amount,pd)=>{
+  const saveData=useCallback((updates)=>{
+    setSyncing(true);
+    if(saveTimeout.current)clearTimeout(saveTimeout.current);
+    saveTimeout.current=setTimeout(async()=>{
+      try{
+        const{error}=await sb.from("trader_data").update({...updates,last_updated:new Date().toISOString()}).eq("user_id",user.id);
+        if(error)throw error;
+        setSyncError(false);
+      }catch(e){console.error(e);setSyncError(true);}
+      finally{setSyncing(false);}
+    },1500);
+  },[user.id]);
+
+  const addXP=(amount,pd,extra={})=>{
     setXp(prev=>{
       const next=prev+amount;
       const o=getRank(prev),n=getRank(next);
       if(n.ri>o.ri)setTimeout(()=>setPopup({type:"rankup",rank:n.cur.rank,title:n.cur.title,rankColor:n.cur.color}),500);
       else setPopup(pd);
+      saveData({xp:next,...extra});
       return next;
     });
   };
 
   const rank=getRank(xp);
   const rc=rank.cur.color;
-
   const critItems=PRE_ITEMS.filter(i=>i.p==="critical");
   const critDone=critItems.filter(i=>checked[i.id]).length;
   const preDone=PRE_ITEMS.filter(i=>checked[i.id]).length;
@@ -260,16 +369,17 @@ function App(){
   const preComplete=preDone===preTotal;
 
   useEffect(()=>{
-    if(preComplete&&!preXPGiven){setPreXPGiven(true);addXP(XP_VAL.pretrade,{type:"xp",icon:"✅",title:"CHECKLIST COMPLETE",body:"All pre-trade checks passed. You are cleared to trade.",xp:XP_VAL.pretrade});}
-    if(!preComplete)setPreXPGiven(false);
+    if(preComplete&&!preXPGiven){setPreXPGiven(true);addXP(XP_VAL.pretrade,{type:"xp",icon:"✅",title:"CHECKLIST COMPLETE",body:"All pre-trade checks passed.",xp:XP_VAL.pretrade},{pre_xp_given:true});}
+    if(!preComplete&&preXPGiven){setPreXPGiven(false);saveData({pre_xp_given:false});}
   },[preComplete]);
 
   const questState={preComplete,journalToday,tradeToday,moodToday,streakActive:streak.days>0};
   useEffect(()=>{
     DAILY_QUESTS.forEach(q=>{
       if(questState[q.key]&&!questXPGiven[q.id]){
-        setQuestXPGiven(p=>({...p,[q.id]:true}));
-        addXP(q.xp,{type:"xp",icon:q.icon,title:"QUEST COMPLETE",body:q.label,xp:q.xp});
+        const nq={...questXPGiven,[q.id]:true};
+        setQuestXPGiven(nq);
+        addXP(q.xp,{type:"xp",icon:q.icon,title:"QUEST COMPLETE",body:q.label,xp:q.xp},{quest_xp_given:nq});
       }
     });
   },[questState.preComplete,questState.journalToday,questState.tradeToday,questState.moodToday,questState.streakActive]);
@@ -285,15 +395,19 @@ function App(){
   const logTrade=()=>{
     if(!tradeForm.rr)return;
     const t={...tradeForm,date:today,time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),id:Date.now()};
-    setTrades(p=>[t,...p]);
-    if(!tradeToday){setTradeToday(true);addXP(XP_VAL.trade,{type:"xp",icon:"📊",title:"TRADE LOGGED",body:`${t.pair} ${t.dir} · RR ${t.rr} · ${t.outcome}`,xp:XP_VAL.trade});}
+    const nt=[t,...trades];
+    setTrades(nt);
+    if(!tradeToday){setTradeToday(true);addXP(XP_VAL.trade,{type:"xp",icon:"📊",title:"TRADE LOGGED",body:`${t.pair} ${t.dir} · RR ${t.rr} · ${t.outcome}`,xp:XP_VAL.trade},{trades:nt,trade_today:true});}
+    else saveData({trades:nt});
     setTradeForm(p=>({...p,rr:"",note:""}));
   };
 
   const logMood=v=>{
     const m=MOODS.find(x=>x.v===v);
-    setMoods(p=>[{v,label:m.label,date:today,time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})},...p].slice(0,30));
-    if(!moodToday){setMoodToday(true);addXP(XP_VAL.mood,{type:"xp",icon:m.icon,title:"MOOD LOGGED",body:`Current state: ${m.label}. Self-awareness is edge.`,xp:XP_VAL.mood});}
+    const nm=[{v,label:m.label,date:today,time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})},...moods].slice(0,30);
+    setMoods(nm);
+    if(!moodToday){setMoodToday(true);addXP(XP_VAL.mood,{type:"xp",icon:m.icon,title:"MOOD LOGGED",body:`State: ${m.label}. Self-awareness is edge.`,xp:XP_VAL.mood},{moods:nm,mood_today:true});}
+    else saveData({moods:nm});
   };
 
   const logStreak=d=>{
@@ -303,16 +417,20 @@ function App(){
     if(idx>=0)history[idx]=entry;else history.unshift(entry);
     const trimmed=history.slice(0,30);
     let days=0;for(const h of trimmed){if(h.disciplined)days++;else break;}
-    setStreak({days,history:trimmed});
-    if(d)addXP(XP_VAL.streak,{type:"xp",icon:"🔥",title:"DISCIPLINE LOGGED",body:`${days} day streak. The system recognises your resolve.`,xp:XP_VAL.streak});
+    const ns={days,history:trimmed};
+    setStreak(ns);
+    saveData({streak:ns});
+    if(d)addXP(XP_VAL.streak,{type:"xp",icon:"🔥",title:"DISCIPLINE LOGGED",body:`${days} day streak.`,xp:XP_VAL.streak},{streak:ns});
   };
 
   const saveJournal=()=>{
     if(journal.followedRules===null)return;
     const e={date:today,time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),...journal};
-    setJournals(p=>[e,...p].slice(0,20));
+    const nj=[e,...journals].slice(0,20);
+    setJournals(nj);
     logStreak(journal.followedRules);
-    if(!journalToday){setJournalToday(true);addXP(XP_VAL.journal,{type:"xp",icon:"📝",title:"JOURNAL SAVED",body:"Self-reflection recorded. Wisdom compounds.",xp:XP_VAL.journal});}
+    if(!journalToday){setJournalToday(true);addXP(XP_VAL.journal,{type:"xp",icon:"📝",title:"JOURNAL SAVED",body:"Wisdom compounds.",xp:XP_VAL.journal},{journals:nj,journal_today:true});}
+    else saveData({journals:nj});
     setJournal({followedRules:null,brokenRules:[],note:""});
   };
 
@@ -321,7 +439,6 @@ function App(){
   const ddLoss=parseFloat(dd.currentLoss)||0;
   const ddPct=ddLimit?Math.min(100,Math.round((ddLoss/ddLimit)*100)):0;
   const ddSafe=ddLimit?Math.max(0,ddLimit-ddLoss):0;
-
   const weekTrades=trades.filter(t=>new Date(t.date)>=new Date(weekKey));
   const weekJournals=journals.filter(j=>new Date(j.date)>=new Date(weekKey));
   const weekWins=weekTrades.filter(t=>t.outcome==="Win").length;
@@ -331,62 +448,69 @@ function App(){
   const allBroken=weekJournals.flatMap(j=>j.brokenRules||[]);
   const brokenCount=allBroken.reduce((a,r)=>({...a,[r]:(a[r]||0)+1}),{});
   const topBroken=Object.entries(brokenCount).sort((a,b)=>b[1]-a[1]).slice(0,3);
-
   const edgeDone=criteria.filter((_,i)=>edgeChecked[i]).length;
   const edgePct=criteria.length?Math.round((edgeDone/criteria.length)*100):0;
   const edgeColor=edgePct>=80?"#A8FF78":edgePct>=60?"#FFD60A":"#FF4D6D";
-
   const activeCatData=RULES_CATS.find(x=>x.id===activeCat);
-
   const moodMap={};
-  moods.forEach(m=>{
-    const td=trades.find(t=>t.date===m.date);
-    if(td){if(!moodMap[m.label])moodMap[m.label]={w:0,t:0};moodMap[m.label].t++;if(td.outcome==="Win")moodMap[m.label].w++;}
-  });
-  const moodInsightRows=Object.entries(moodMap).map(([label,obj])=>({label,wr:Math.round((obj.w/obj.t)*100),days:obj.t}));
+  moods.forEach(m=>{const td=trades.find(t=>t.date===m.date);if(td){if(!moodMap[m.label])moodMap[m.label]={w:0,t:0};moodMap[m.label].t++;if(td.outcome==="Win")moodMap[m.label].w++;}});
+  const moodRows=Object.entries(moodMap).map(([label,obj])=>({label,wr:Math.round((obj.w/obj.t)*100),days:obj.t}));
 
   const TABS=[
-    {id:"pretrade",icon:"✅",label:"CHECK"},
-    {id:"rules",icon:"📖",label:"RULES"},
-    {id:"quests",icon:"⚔️",label:"QUESTS"},
-    {id:"trades",icon:"📊",label:"TRADES"},
-    {id:"timers",icon:"⏱️",label:"TIMERS"},
-    {id:"weekly",icon:"📅",label:"WEEKLY"},
-    {id:"mood",icon:"🧠",label:"MOOD"},
-    {id:"drawdown",icon:"📉",label:"DRAWDOWN"},
-    {id:"edge",icon:"🎯",label:"EDGE"},
-    {id:"journal",icon:"📝",label:"JOURNAL"},
+    {id:"pretrade",icon:"✅",label:"CHECK"},{id:"rules",icon:"📖",label:"RULES"},
+    {id:"quests",icon:"⚔️",label:"QUESTS"},{id:"trades",icon:"📊",label:"TRADES"},
+    {id:"timers",icon:"⏱️",label:"TIMERS"},{id:"weekly",icon:"📅",label:"WEEKLY"},
+    {id:"mood",icon:"🧠",label:"MOOD"},{id:"drawdown",icon:"📉",label:"DRAWDOWN"},
+    {id:"edge",icon:"🎯",label:"EDGE"},{id:"journal",icon:"📝",label:"JOURNAL"},
   ];
 
-  const bg="#07070F",card="#0C0B1A",bdr="#1A1830";
   const Card=({children,style={}})=><div style={{background:card,border:`1px solid ${bdr}`,borderRadius:6,padding:"16px 18px",marginBottom:14,...style}}>{children}</div>;
   const Lbl=({children})=><div style={{fontSize:9,color:"#444",letterSpacing:3,marginBottom:10}}>{children}</div>;
   const Inp=({style={},...p})=><input {...p} style={{background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:"9px 12px",color:"#CCC",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",...style}}/>;
   const Btn=({children,color=rc,onClick,style={}})=><button onClick={onClick} style={{background:`${color}15`,border:`1px solid ${color}40`,color,padding:"10px 16px",borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,letterSpacing:1,fontFamily:"inherit",transition:"all .2s",...style}}>{children}</button>;
+  const userName=user.user_metadata?.name||user.email?.split("@")[0]||"Hunter";
+
+  if(loading){return(<div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}><Spinner color="#9B6DFF"/><div style={{fontSize:10,color:"#444",letterSpacing:3}}>LOADING YOUR DATA...</div></div>);}
 
   return(
     <div style={{minHeight:"100vh",background:bg,fontFamily:"'Courier New',Courier,monospace",color:"#DDD",overflowX:"hidden"}}>
       <Popup popup={popup} onClose={()=>setPopup(null)}/>
+      {showLogout&&(
+        <div style={{position:"fixed",inset:0,zIndex:150,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.8)"}}>
+          <div style={{background:card,border:`1px solid ${bdr}`,borderRadius:8,padding:28,textAlign:"center",maxWidth:300,width:"90%"}}>
+            <div style={{fontSize:12,color:"#CCC",marginBottom:20,letterSpacing:1}}>Log out of your account?</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={async()=>{await sb.auth.signOut();onLogout();}} style={{flex:1,padding:"11px 0",borderRadius:4,cursor:"pointer",background:"#FF4D6D15",border:"1px solid #FF4D6D40",color:"#FF4D6D",fontSize:11,fontWeight:700,letterSpacing:1,fontFamily:"inherit"}}>LOG OUT</button>
+              <button onClick={()=>setShowLogout(false)} style={{flex:1,padding:"11px 0",borderRadius:4,cursor:"pointer",background:"transparent",border:`1px solid ${bdr}`,color:"#555",fontSize:11,fontWeight:700,letterSpacing:1,fontFamily:"inherit"}}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{background:"#09091A",borderBottom:`1px solid ${bdr}`,padding:"12px 16px 0",position:"sticky",top:0,zIndex:20}}>
         <div style={{maxWidth:760,margin:"0 auto"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <div>
-              <div style={{fontSize:8,letterSpacing:5,color:"#333",marginBottom:2}}>PROP TRADER OS</div>
-              <div style={{fontSize:17,fontWeight:700,letterSpacing:3,color:"#EEE"}}>TRADING SYSTEM</div>
+              <div style={{fontSize:8,letterSpacing:4,color:"#333",marginBottom:1}}>PROP TRADER OS</div>
+              <div style={{fontSize:16,fontWeight:700,letterSpacing:3,color:"#EEE"}}>TRADING SYSTEM</div>
+              <div style={{fontSize:8,color:"#444",marginTop:1}}>👤 {userName}</div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:8,background:`${rc}12`,border:`1px solid ${rc}50`,boxShadow:`0 0 16px ${rank.cur.glow}`,borderRadius:4,padding:"6px 12px"}}>
-              <div style={{fontSize:22,fontWeight:900,color:rc,textShadow:`0 0 12px ${rc}`}}>{rank.cur.rank}</div>
-              <div>
-                <div style={{fontSize:10,color:rc,fontWeight:700,letterSpacing:2}}>{rank.cur.title}</div>
-                <div style={{fontSize:8,color:"#555",letterSpacing:1}}>LV.{rank.lv} · {xp} XP</div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,background:`${rc}12`,border:`1px solid ${rc}50`,boxShadow:`0 0 16px ${rank.cur.glow}`,borderRadius:4,padding:"5px 10px",cursor:"pointer"}} onClick={()=>setShowLogout(true)}>
+                <div style={{fontSize:20,fontWeight:900,color:rc,textShadow:`0 0 12px ${rc}`}}>{rank.cur.rank}</div>
+                <div>
+                  <div style={{fontSize:9,color:rc,fontWeight:700,letterSpacing:2}}>{rank.cur.title}</div>
+                  <div style={{fontSize:8,color:"#555",letterSpacing:1}}>LV.{rank.lv} · {xp} XP</div>
+                </div>
+              </div>
+              <div style={{fontSize:8,color:syncError?"#FF4D6D":syncing?"#FFD60A":"#444",letterSpacing:1}}>
+                {syncError?"⚠ SYNC ERROR":syncing?"⟳ SYNCING...":"✓ SYNCED"}
               </div>
             </div>
           </div>
           <div style={{marginBottom:8}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:"#333",letterSpacing:1,marginBottom:3}}>
-              <span>XP TO NEXT RANK</span>
-              <span style={{color:rc}}>{rank.isMax?"MAX RANK":`${rank.into} / ${rank.need}`}</span>
+              <span>XP TO NEXT RANK</span><span style={{color:rc}}>{rank.isMax?"MAX RANK":`${rank.into} / ${rank.need}`}</span>
             </div>
             <div style={{background:"#12112A",borderRadius:2,height:4,overflow:"hidden"}}>
               <div style={{height:"100%",width:`${rank.pct}%`,background:`linear-gradient(90deg,${rc}88,${rc})`,boxShadow:`0 0 8px ${rc}`,transition:"width .6s ease",borderRadius:2}}/>
@@ -407,464 +531,262 @@ function App(){
 
       <div style={{maxWidth:760,margin:"0 auto",padding:"14px 14px 80px"}}>
 
-        {tab==="pretrade"&&(
-          <div>
-            <Card>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
-                <div><Lbl>PRE-TRADE CHECK</Lbl><div style={{fontSize:24,fontWeight:700,color:canTrade?"#A8FF78":rc}}>{preDone}/{preTotal}</div></div>
-                <div style={{textAlign:"right"}}><Lbl>CRITICAL</Lbl><div style={{fontSize:24,fontWeight:700,color:critDone===critItems.length?"#A8FF78":"#FF4D6D"}}>{critDone}/{critItems.length}</div></div>
-              </div>
-              <div style={{background:"#12112A",borderRadius:2,height:4,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${Math.round(preDone/preTotal*100)}%`,background:canTrade?"#A8FF78":`linear-gradient(90deg,#FF4D6D,#9B6DFF,${rc})`,transition:"width .4s",borderRadius:2}}/>
-              </div>
-              <div style={{display:"flex",gap:14,marginTop:8,alignItems:"center"}}>
-                {Object.entries(PC).map(([k,v])=>(
-                  <div key={k} style={{display:"flex",alignItems:"center",gap:4,fontSize:8,color:"#444"}}>
-                    <span style={{color:v.color,fontSize:7}}>●</span><span style={{letterSpacing:1}}>{v.label}</span>
-                  </div>
-                ))}
-                <div style={{marginLeft:"auto",fontSize:8,color:"#9B6DFF",letterSpacing:1}}>+{XP_VAL.pretrade} XP ON COMPLETE</div>
-              </div>
-            </Card>
-            {["critical","high","medium"].map(prio=>(
-              <div key={prio} style={{marginBottom:14}}>
-                <div style={{fontSize:8,letterSpacing:3,color:PC[prio].color,marginBottom:5,paddingLeft:2}}>● {PC[prio].label} CHECKS</div>
-                <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                  {PRE_ITEMS.filter(i=>i.p===prio).map(item=>{
-                    const done=checked[item.id];
-                    return(
-                      <button key={item.id} onClick={()=>setChecked(p=>({...p,[item.id]:!p[item.id]}))} style={{display:"flex",alignItems:"flex-start",gap:12,background:done?`${PC[prio].color}10`:card,border:done?`1px solid ${PC[prio].color}35`:`1px solid ${bdr}`,borderRadius:4,padding:"11px 13px",cursor:"pointer",textAlign:"left",width:"100%",transition:"all .18s",fontFamily:"inherit"}}>
-                        <div style={{width:16,height:16,flexShrink:0,marginTop:1,border:`2px solid ${done?PC[prio].color:"#2A2840"}`,borderRadius:2,background:done?PC[prio].color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s"}}>
-                          {done&&<span style={{color:"#000",fontSize:9,fontWeight:900}}>✓</span>}
-                        </div>
-                        <span style={{fontSize:12,color:done?"#555":"#CCC",lineHeight:1.6,textDecoration:done?"line-through":"none",textDecorationColor:"#333"}}>{item.text}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            <div style={{padding:16,borderRadius:6,textAlign:"center",background:canTrade?"#A8FF7808":"#FF4D6D08",border:`1px solid ${canTrade?"#A8FF7830":"#FF4D6D30"}`}}>
-              {canTrade?(<><div style={{fontSize:16,marginBottom:4}}>✅</div><div style={{color:"#A8FF78",fontSize:11,fontWeight:700,letterSpacing:3}}>ALL CRITICAL CHECKS PASSED</div><div style={{color:"#555",fontSize:10,marginTop:3}}>Execute your plan. Trust your process.</div></>):(<><div style={{fontSize:16,marginBottom:4}}>⛔</div><div style={{color:"#FF4D6D",fontSize:11,fontWeight:700,letterSpacing:3}}>CRITICAL CHECKS INCOMPLETE</div><div style={{color:"#555",fontSize:10,marginTop:3}}>Complete all critical items before trading.</div></>)}
+        {tab==="pretrade"&&(<div>
+          <Card>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+              <div><Lbl>PRE-TRADE CHECK</Lbl><div style={{fontSize:24,fontWeight:700,color:canTrade?"#A8FF78":rc}}>{preDone}/{preTotal}</div></div>
+              <div style={{textAlign:"right"}}><Lbl>CRITICAL</Lbl><div style={{fontSize:24,fontWeight:700,color:critDone===critItems.length?"#A8FF78":"#FF4D6D"}}>{critDone}/{critItems.length}</div></div>
             </div>
-            <div style={{marginTop:20,textAlign:"center"}}>
-              {!showReset?(<button onClick={()=>setShowReset(true)} style={{background:"transparent",border:`1px solid ${bdr}`,color:"#333",padding:"6px 18px",borderRadius:3,cursor:"pointer",fontSize:8,letterSpacing:2,fontFamily:"inherit"}}>RESET SESSION</button>):(
-                <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-                  <button onClick={()=>{setChecked({});setShowReset(false);}} style={{background:"#FF3B3B15",border:"1px solid #FF3B3B50",color:"#FF3B3B",padding:"6px 16px",borderRadius:3,cursor:"pointer",fontSize:8,letterSpacing:2,fontFamily:"inherit"}}>CONFIRM RESET</button>
-                  <button onClick={()=>setShowReset(false)} style={{background:"transparent",border:`1px solid ${bdr}`,color:"#555",padding:"6px 16px",borderRadius:3,cursor:"pointer",fontSize:8,letterSpacing:2,fontFamily:"inherit"}}>CANCEL</button>
-                </div>
-              )}
+            <div style={{background:"#12112A",borderRadius:2,height:4,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${Math.round(preDone/preTotal*100)}%`,background:canTrade?"#A8FF78":`linear-gradient(90deg,#FF4D6D,#9B6DFF,${rc})`,transition:"width .4s",borderRadius:2}}/>
             </div>
+            <div style={{display:"flex",gap:14,marginTop:8,alignItems:"center"}}>
+              {Object.entries(PC).map(([k,v])=>(<div key={k} style={{display:"flex",alignItems:"center",gap:4,fontSize:8,color:"#444"}}><span style={{color:v.color,fontSize:7}}>●</span><span style={{letterSpacing:1}}>{v.label}</span></div>))}
+              <div style={{marginLeft:"auto",fontSize:8,color:"#9B6DFF",letterSpacing:1}}>+{XP_VAL.pretrade} XP</div>
+            </div>
+          </Card>
+          {["critical","high","medium"].map(prio=>(
+            <div key={prio} style={{marginBottom:14}}>
+              <div style={{fontSize:8,letterSpacing:3,color:PC[prio].color,marginBottom:5,paddingLeft:2}}>● {PC[prio].label} CHECKS</div>
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                {PRE_ITEMS.filter(i=>i.p===prio).map(item=>{
+                  const done=checked[item.id];
+                  return(<button key={item.id} onClick={()=>{const u={...checked,[item.id]:!checked[item.id]};setChecked(u);saveData({checked:u});}} style={{display:"flex",alignItems:"flex-start",gap:12,background:done?`${PC[prio].color}10`:card,border:done?`1px solid ${PC[prio].color}35`:`1px solid ${bdr}`,borderRadius:4,padding:"11px 13px",cursor:"pointer",textAlign:"left",width:"100%",transition:"all .18s",fontFamily:"inherit"}}>
+                    <div style={{width:16,height:16,flexShrink:0,marginTop:1,border:`2px solid ${done?PC[prio].color:"#2A2840"}`,borderRadius:2,background:done?PC[prio].color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s"}}>{done&&<span style={{color:"#000",fontSize:9,fontWeight:900}}>✓</span>}</div>
+                    <span style={{fontSize:12,color:done?"#555":"#CCC",lineHeight:1.6,textDecoration:done?"line-through":"none",textDecorationColor:"#333"}}>{item.text}</span>
+                  </button>);
+                })}
+              </div>
+            </div>
+          ))}
+          <div style={{padding:16,borderRadius:6,textAlign:"center",background:canTrade?"#A8FF7808":"#FF4D6D08",border:`1px solid ${canTrade?"#A8FF7830":"#FF4D6D30"}`}}>
+            {canTrade?(<><div style={{fontSize:16,marginBottom:4}}>✅</div><div style={{color:"#A8FF78",fontSize:11,fontWeight:700,letterSpacing:3}}>ALL CRITICAL CHECKS PASSED</div><div style={{color:"#555",fontSize:10,marginTop:3}}>Execute your plan. Trust your process.</div></>):(<><div style={{fontSize:16,marginBottom:4}}>⛔</div><div style={{color:"#FF4D6D",fontSize:11,fontWeight:700,letterSpacing:3}}>CRITICAL CHECKS INCOMPLETE</div><div style={{color:"#555",fontSize:10,marginTop:3}}>Complete all critical items before trading.</div></>)}
           </div>
-        )}
+          <div style={{marginTop:20,textAlign:"center"}}>
+            {!showReset?(<button onClick={()=>setShowReset(true)} style={{background:"transparent",border:`1px solid ${bdr}`,color:"#333",padding:"6px 18px",borderRadius:3,cursor:"pointer",fontSize:8,letterSpacing:2,fontFamily:"inherit"}}>RESET SESSION</button>):(
+              <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+                <button onClick={()=>{setChecked({});setShowReset(false);saveData({checked:{},pre_xp_given:false});}} style={{background:"#FF3B3B15",border:"1px solid #FF3B3B50",color:"#FF3B3B",padding:"6px 16px",borderRadius:3,cursor:"pointer",fontSize:8,letterSpacing:2,fontFamily:"inherit"}}>CONFIRM RESET</button>
+                <button onClick={()=>setShowReset(false)} style={{background:"transparent",border:`1px solid ${bdr}`,color:"#555",padding:"6px 16px",borderRadius:3,cursor:"pointer",fontSize:8,letterSpacing:2,fontFamily:"inherit"}}>CANCEL</button>
+              </div>
+            )}
+          </div>
+        </div>)}
 
-        {tab==="rules"&&(
-          <div>
-            <div style={{fontSize:9,color:"#444",letterSpacing:2,marginBottom:12}}>STUDY & INTERNALIZE — NOT A DAILY CHECKLIST</div>
-            <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:10,scrollbarWidth:"none",marginBottom:14}}>
-              {RULES_CATS.map(cat=>{
-                const done=cat.items.filter(i=>rulesChecked[i.id]).length,tot=cat.items.length,active=activeCat===cat.id;
-                return(<button key={cat.id} onClick={()=>setActiveCat(cat.id)} style={{flexShrink:0,border:active?`1px solid ${cat.color}`:`1px solid ${bdr}`,background:active?`${cat.color}15`:card,color:active?cat.color:"#555",padding:"6px 11px",borderRadius:3,cursor:"pointer",fontSize:9,letterSpacing:1,fontFamily:"inherit",transition:"all .2s",display:"flex",alignItems:"center",gap:5}}>
-                  {cat.icon}<span style={{whiteSpace:"nowrap"}}>{cat.label.toUpperCase()}</span>
-                  <span style={{background:done===tot?cat.color:"#1A1830",color:done===tot?"#000":"#555",borderRadius:2,padding:"1px 5px",fontSize:8,fontWeight:700}}>{done}/{tot}</span>
+        {tab==="rules"&&(<div>
+          <div style={{fontSize:9,color:"#444",letterSpacing:2,marginBottom:12}}>STUDY & INTERNALIZE — NOT A DAILY CHECKLIST</div>
+          <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:10,scrollbarWidth:"none",marginBottom:14}}>
+            {RULES_CATS.map(cat=>{
+              const done=cat.items.filter(i=>rulesChecked[i.id]).length,tot=cat.items.length,active=activeCat===cat.id;
+              return(<button key={cat.id} onClick={()=>setActiveCat(cat.id)} style={{flexShrink:0,border:active?`1px solid ${cat.color}`:`1px solid ${bdr}`,background:active?`${cat.color}15`:card,color:active?cat.color:"#555",padding:"6px 11px",borderRadius:3,cursor:"pointer",fontSize:9,letterSpacing:1,fontFamily:"inherit",transition:"all .2s",display:"flex",alignItems:"center",gap:5}}>
+                {cat.icon}<span style={{whiteSpace:"nowrap"}}>{cat.label.toUpperCase()}</span>
+                <span style={{background:done===tot?cat.color:"#1A1830",color:done===tot?"#000":"#555",borderRadius:2,padding:"1px 5px",fontSize:8,fontWeight:700}}>{done}/{tot}</span>
+              </button>);
+            })}
+          </div>
+          {activeCatData&&(<>
+            <div style={{borderLeft:`3px solid ${activeCatData.color}`,paddingLeft:12,marginBottom:12}}>
+              <div style={{fontSize:14,fontWeight:700,color:activeCatData.color}}>{activeCatData.icon} {activeCatData.label}</div>
+              <div style={{fontSize:8,color:"#555",marginTop:2,letterSpacing:2}}>{activeCatData.items.filter(i=>rulesChecked[i.id]).length}/{activeCatData.items.length} STUDIED</div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+              {activeCatData.items.map(item=>{
+                const done=rulesChecked[item.id],isTrap=activeCatData.id==="traps";
+                return(<button key={item.id} onClick={()=>{const u={...rulesChecked,[item.id]:!rulesChecked[item.id]};setRulesChecked(u);saveData({rules_checked:u});}} style={{display:"flex",alignItems:"flex-start",gap:12,background:done?`${activeCatData.color}10`:card,border:done?`1px solid ${activeCatData.color}35`:`1px solid ${bdr}`,borderRadius:4,padding:"12px 13px",cursor:"pointer",textAlign:"left",width:"100%",transition:"all .18s",fontFamily:"inherit"}}>
+                  <div style={{width:16,height:16,flexShrink:0,marginTop:isTrap?3:1,border:`2px solid ${done?activeCatData.color:"#2A2840"}`,borderRadius:2,background:done?activeCatData.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s"}}>{done&&<span style={{color:"#000",fontSize:9,fontWeight:900}}>✓</span>}</div>
+                  <div style={{flex:1}}>
+                    {isTrap&&<div style={{fontSize:8,color:done?"#555":activeCatData.color,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>{item.trap}</div>}
+                    {!isTrap&&<span style={{fontSize:8,color:done?activeCatData.color:"#444",fontWeight:700,marginRight:7,letterSpacing:1}}>{String(item.id).padStart(2,"0")}</span>}
+                    <span style={{fontSize:12,color:done?"#666":"#CCC",lineHeight:1.65,textDecoration:done?"line-through":"none",textDecorationColor:"#333"}}>{item.text}</span>
+                  </div>
                 </button>);
               })}
             </div>
-            {activeCatData&&(
-              <>
-                <div style={{borderLeft:`3px solid ${activeCatData.color}`,paddingLeft:12,marginBottom:12}}>
-                  <div style={{fontSize:14,fontWeight:700,color:activeCatData.color}}>{activeCatData.icon} {activeCatData.label}</div>
-                  <div style={{fontSize:8,color:"#555",marginTop:2,letterSpacing:2}}>{activeCatData.items.filter(i=>rulesChecked[i.id]).length}/{activeCatData.items.length} STUDIED</div>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                  {activeCatData.items.map(item=>{
-                    const done=rulesChecked[item.id],isTrap=activeCatData.id==="traps";
-                    return(
-                      <button key={item.id} onClick={()=>setRulesChecked(p=>({...p,[item.id]:!p[item.id]}))} style={{display:"flex",alignItems:"flex-start",gap:12,background:done?`${activeCatData.color}10`:card,border:done?`1px solid ${activeCatData.color}35`:`1px solid ${bdr}`,borderRadius:4,padding:"12px 13px",cursor:"pointer",textAlign:"left",width:"100%",transition:"all .18s",fontFamily:"inherit"}}>
-                        <div style={{width:16,height:16,flexShrink:0,marginTop:isTrap?3:1,border:`2px solid ${done?activeCatData.color:"#2A2840"}`,borderRadius:2,background:done?activeCatData.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .18s"}}>
-                          {done&&<span style={{color:"#000",fontSize:9,fontWeight:900}}>✓</span>}
-                        </div>
-                        <div style={{flex:1}}>
-                          {isTrap&&<div style={{fontSize:8,color:done?"#555":activeCatData.color,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>{item.trap}</div>}
-                          {!isTrap&&<span style={{fontSize:8,color:done?activeCatData.color:"#444",fontWeight:700,marginRight:7,letterSpacing:1}}>{String(item.id).padStart(2,"0")}</span>}
-                          <span style={{fontSize:12,color:done?"#666":"#CCC",lineHeight:1.65,textDecoration:done?"line-through":"none",textDecorationColor:"#333"}}>{item.text}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+          </>)}
+        </div>)}
 
-        {tab==="quests"&&(
-          <div>
-            <Card>
-              <Lbl>DAILY QUESTS — RESETS EACH SESSION</Lbl>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {DAILY_QUESTS.map(q=>{
-                  const done=questState[q.key];
-                  return(
-                    <div key={q.id} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",borderRadius:4,background:done?`${rc}10`:card,border:done?`1px solid ${rc}40`:`1px solid ${bdr}`,transition:"all .3s"}}>
-                      <div style={{fontSize:20}}>{q.icon}</div>
-                      <div style={{flex:1}}><div style={{fontSize:12,color:done?"#888":"#CCC",textDecoration:done?"line-through":"none"}}>{q.label}</div></div>
-                      <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:11,fontWeight:700,color:done?rc:"#333",letterSpacing:1}}>+{q.xp} XP</div>
-                        <div style={{fontSize:9,color:done?"#A8FF78":"#444",marginTop:2}}>{done?"✓ DONE":"PENDING"}</div>
-                      </div>
-                    </div>
-                  );
-                })}
+        {tab==="quests"&&(<div>
+          <Card>
+            <Lbl>DAILY QUESTS</Lbl>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {DAILY_QUESTS.map(q=>{
+                const done=questState[q.key];
+                return(<div key={q.id} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",borderRadius:4,background:done?`${rc}10`:card,border:done?`1px solid ${rc}40`:`1px solid ${bdr}`,transition:"all .3s"}}>
+                  <div style={{fontSize:20}}>{q.icon}</div>
+                  <div style={{flex:1}}><div style={{fontSize:12,color:done?"#888":"#CCC",textDecoration:done?"line-through":"none"}}>{q.label}</div></div>
+                  <div style={{textAlign:"right"}}><div style={{fontSize:11,fontWeight:700,color:done?rc:"#333",letterSpacing:1}}>+{q.xp} XP</div><div style={{fontSize:9,color:done?"#A8FF78":"#444",marginTop:2}}>{done?"✓ DONE":"PENDING"}</div></div>
+                </div>);
+              })}
+            </div>
+          </Card>
+          <Card>
+            <Lbl>QUEST PROGRESS TODAY</Lbl>
+            {(()=>{const done=DAILY_QUESTS.filter(q=>questState[q.key]).length,tot=DAILY_QUESTS.length;return(<><div style={{fontSize:28,fontWeight:700,color:rc,marginBottom:6}}>{done}/{tot}</div><div style={{background:"#12112A",borderRadius:2,height:5,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.round(done/tot*100)}%`,background:`linear-gradient(90deg,${rc}88,${rc})`,boxShadow:`0 0 8px ${rc}`,transition:"width .6s",borderRadius:2}}/></div><div style={{fontSize:10,color:"#555",marginTop:6}}>{done===tot?"All quests complete!":"Complete remaining quests to earn bonus XP."}</div></>);})()}
+          </Card>
+        </div>)}
+
+        {tab==="trades"&&(<div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+            {[["WIN RATE",`${winRate}%`,winRate>=50?"#A8FF78":"#FF4D6D"],["AVG RR",avgRR,rc],["PROFIT F.",pf,"#FFD700"]].map(([l,v,c])=>(<div key={l} style={{background:card,border:`1px solid ${bdr}`,borderRadius:6,padding:"12px",textAlign:"center"}}><div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>{l}</div><div style={{fontSize:22,fontWeight:700,color:c}}>{v}</div></div>))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
+            {[["TOTAL",total,"#888"],["WINS",wins,"#A8FF78"],["LOSSES",losses,"#FF4D6D"],["BE",bes,"#FFD60A"]].map(([l,v,c])=>(<div key={l} style={{background:card,border:`1px solid ${bdr}`,borderRadius:6,padding:"10px",textAlign:"center"}}><div style={{fontSize:8,color:"#444",letterSpacing:1,marginBottom:3}}>{l}</div><div style={{fontSize:18,fontWeight:700,color:c}}>{v}</div></div>))}
+          </div>
+          <Card>
+            <Lbl>LOG NEW TRADE · +{XP_VAL.trade} XP</Lbl>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+              <div><div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>PAIR</div>
+                <select value={tradeForm.pair} onChange={e=>setTradeForm(p=>({...p,pair:e.target.value}))} style={{background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:"9px 12px",color:"#CCC",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%"}}>{PAIRS.map(p=><option key={p}>{p}</option>)}</select>
               </div>
-            </Card>
-            <Card>
-              <Lbl>QUEST PROGRESS TODAY</Lbl>
-              {(()=>{
-                const done=DAILY_QUESTS.filter(q=>questState[q.key]).length,tot=DAILY_QUESTS.length;
-                return(<>
-                  <div style={{fontSize:28,fontWeight:700,color:rc,marginBottom:6}}>{done}/{tot}</div>
-                  <div style={{background:"#12112A",borderRadius:2,height:5,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${Math.round(done/tot*100)}%`,background:`linear-gradient(90deg,${rc}88,${rc})`,boxShadow:`0 0 8px ${rc}`,transition:"width .6s",borderRadius:2}}/>
-                  </div>
-                  <div style={{fontSize:10,color:"#555",marginTop:6}}>{done===tot?"All quests complete. Maximum XP earned.":"Complete remaining quests to earn bonus XP."}</div>
-                </>);
-              })()}
-            </Card>
-          </div>
-        )}
-
-        {tab==="trades"&&(
-          <div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
-              {[["WIN RATE",`${winRate}%`,winRate>=50?"#A8FF78":"#FF4D6D"],["AVG RR",avgRR,rc],["PROFIT F.",pf,"#FFD700"]].map(([l,v,c])=>(
-                <div key={l} style={{background:card,border:`1px solid ${bdr}`,borderRadius:6,padding:"12px",textAlign:"center"}}>
-                  <div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>{l}</div>
-                  <div style={{fontSize:22,fontWeight:700,color:c}}>{v}</div>
+              <div><div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>DIRECTION</div>
+                <div style={{display:"flex",gap:6}}>{["Long","Short"].map(d=>(<button key={d} onClick={()=>setTradeForm(p=>({...p,dir:d}))} style={{flex:1,padding:"9px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${tradeForm.dir===d?(d==="Long"?"#A8FF78":"#FF4D6D"):bdr}`,background:tradeForm.dir===d?(d==="Long"?"#A8FF7815":"#FF4D6D15"):card,color:tradeForm.dir===d?(d==="Long"?"#A8FF78":"#FF4D6D"):"#555",fontSize:11,fontWeight:700}}>{d}</button>))}</div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+              <div><div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>RR ACHIEVED</div><Inp type="number" step="0.1" min="0" placeholder="e.g. 2.5" value={tradeForm.rr} onChange={e=>setTradeForm(p=>({...p,rr:e.target.value}))}/></div>
+              <div><div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>OUTCOME</div>
+                <div style={{display:"flex",gap:4}}>{["Win","Loss","BE"].map(o=>{const oc=o==="Win"?"#A8FF78":o==="Loss"?"#FF4D6D":"#FFD60A";return<button key={o} onClick={()=>setTradeForm(p=>({...p,outcome:o}))} style={{flex:1,padding:"9px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${tradeForm.outcome===o?oc:bdr}`,background:tradeForm.outcome===o?`${oc}15`:card,color:tradeForm.outcome===o?oc:"#555",fontSize:10,fontWeight:700}}>{o}</button>;})}
                 </div>
+              </div>
+            </div>
+            <Inp placeholder="Notes (optional)" value={tradeForm.note} onChange={e=>setTradeForm(p=>({...p,note:e.target.value}))} style={{marginBottom:8}}/>
+            <Btn onClick={logTrade} style={{width:"100%",padding:"11px 0"}}>LOG TRADE</Btn>
+          </Card>
+          {trades.length>0&&(<div><Lbl>TRADE HISTORY</Lbl><div style={{display:"flex",flexDirection:"column",gap:4}}>{trades.map(t=>{const oc=t.outcome==="Win"?"#A8FF78":t.outcome==="Loss"?"#FF4D6D":"#FFD60A";return(<div key={t.id} style={{background:card,border:`1px solid ${bdr}`,borderRadius:4,padding:"10px 13px",display:"flex",alignItems:"center",gap:10}}><div style={{flex:1}}><div style={{fontSize:12,color:"#CCC",fontWeight:700}}>{t.pair} <span style={{color:t.dir==="Long"?"#A8FF78":"#FF4D6D",fontSize:10}}>{t.dir}</span></div>{t.note&&<div style={{fontSize:10,color:"#555",marginTop:2}}>{t.note}</div>}</div><div style={{textAlign:"right"}}><div style={{fontSize:11,color:oc,fontWeight:700}}>{t.outcome}</div><div style={{fontSize:9,color:"#444"}}>RR {t.rr} · {t.time}</div></div></div>);})}</div></div>)}
+        </div>)}
+
+        {tab==="timers"&&(<div>
+          <Card>
+            <Lbl>SESSION TIMER — 2 HOUR LIMIT</Lbl>
+            <div style={{textAlign:"center",marginBottom:14}}>
+              <div style={{fontSize:52,fontWeight:900,color:session.secs<1800?"#FF4D6D":session.secs<3600?"#FFD60A":"#A8FF78",letterSpacing:4,textShadow:`0 0 20px ${session.secs<1800?"#FF4D6D":session.secs<3600?"#FFD60A":"#A8FF78"}40`}}>{session.fmt(session.secs)}</div>
+              <div style={{fontSize:9,color:"#444",marginTop:4,letterSpacing:2}}>{session.secs<1800?"⚠ DECISION FATIGUE ZONE":session.secs<3600?"APPROACHING LIMIT":"SESSION ACTIVE"}</div>
+            </div>
+            <div style={{background:"#12112A",borderRadius:2,height:5,overflow:"hidden",marginBottom:12}}><div style={{height:"100%",width:`${Math.round((1-session.secs/7200)*100)}%`,background:session.secs<1800?"#FF4D6D":session.secs<3600?"#FFD60A":"#A8FF78",transition:"width 1s",borderRadius:2}}/></div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn onClick={()=>session.setRunning(r=>!r)} color={session.running?"#FFD60A":"#A8FF78"} style={{flex:1,padding:"10px 0"}}>{session.running?"⏸ PAUSE":"▶ START"}</Btn>
+              <Btn onClick={()=>session.reset(7200)} color="#555" style={{padding:"10px 16px"}}>↺ RESET</Btn>
+            </div>
+          </Card>
+          <Card>
+            <Lbl>REVENGE TRADE COOLDOWN — 1 HOUR RULE</Lbl>
+            <div style={{textAlign:"center",marginBottom:14}}>
+              <div style={{fontSize:52,fontWeight:900,letterSpacing:4,color:revenge.running?(revenge.secs>1800?"#FF4D6D":"#FFD60A"):"#333",textShadow:revenge.running?`0 0 20px ${revenge.secs>1800?"#FF4D6D":"#FFD60A"}40`:"none"}}>{revenge.fmt(revenge.secs)}</div>
+              <div style={{fontSize:9,color:"#444",marginTop:4,letterSpacing:2}}>{revenge.running?(revenge.secs>1800?"🔴 LOCKED — DO NOT TRADE":"🟡 COOLING DOWN"):(revenge.secs===0?"✅ COOLDOWN COMPLETE":"TRIGGER AFTER A LOSS")}</div>
+            </div>
+            <div style={{background:"#12112A",borderRadius:2,height:5,overflow:"hidden",marginBottom:12}}><div style={{height:"100%",width:`${Math.round((1-revenge.secs/3600)*100)}%`,background:revenge.secs>1800?"#FF4D6D":"#FFD60A",transition:"width 1s",borderRadius:2}}/></div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn onClick={()=>{revenge.reset(3600);revenge.setRunning(true);}} color="#FF4D6D" style={{flex:1,padding:"10px 0"}}>🚨 I JUST TOOK A LOSS</Btn>
+              <Btn onClick={()=>revenge.reset(3600)} color="#555" style={{padding:"10px 16px"}}>↺</Btn>
+            </div>
+          </Card>
+        </div>)}
+
+        {tab==="weekly"&&(<div>
+          <Lbl>WEEK STARTING {weekKey}</Lbl>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            {[["DISCIPLINED DAYS",weekDisciplined,"#A8FF78"],["RULE BREAKS",weekBroken,"#FF4D6D"],["TRADES",weekTrades.length,rc],["WIN RATE",weekTrades.length?`${weekWR}%`:"—",weekWR>=50?"#A8FF78":"#FF4D6D"]].map(([l,v,c])=>(<div key={l} style={{background:card,border:`1px solid ${bdr}`,borderRadius:6,padding:"14px",textAlign:"center"}}><div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>{l}</div><div style={{fontSize:26,fontWeight:700,color:c}}>{v}</div></div>))}
+          </div>
+          {topBroken.length>0&&(<Card><Lbl>TOP BROKEN RULES THIS WEEK</Lbl>{topBroken.map(([rule,count])=>(<div key={rule} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${bdr}`}}><span style={{fontSize:12,color:"#CCC"}}>{rule}</span><span style={{fontSize:11,fontWeight:700,color:"#FF4D6D"}}>{count}x</span></div>))}</Card>)}
+          {weekTrades.length>0&&(<Card><Lbl>THIS WEEK'S TRADES</Lbl>{weekTrades.map(t=>{const oc=t.outcome==="Win"?"#A8FF78":t.outcome==="Loss"?"#FF4D6D":"#FFD60A";return(<div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${bdr}`}}><span style={{fontSize:12,color:"#CCC"}}>{t.pair} <span style={{fontSize:10,color:t.dir==="Long"?"#A8FF78":"#FF4D6D"}}>{t.dir}</span></span><div><span style={{fontSize:11,fontWeight:700,color:oc}}>{t.outcome}</span><span style={{fontSize:9,color:"#444",marginLeft:8}}>RR {t.rr}</span></div></div>);})}</Card>)}
+          {weekJournals.length===0&&weekTrades.length===0&&<div style={{textAlign:"center",padding:40,color:"#333",fontSize:12,letterSpacing:2}}>NO DATA YET THIS WEEK.</div>}
+        </div>)}
+
+        {tab==="mood"&&(<div>
+          <Card>
+            <Lbl>PRE-SESSION MENTAL STATE · +{XP_VAL.mood} XP</Lbl>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {MOODS.map(m=>{const sel=moods[0]?.date===today&&moods[0]?.v===m.v;return(<button key={m.v} onClick={()=>logMood(m.v)} style={{flex:1,minWidth:80,padding:"14px 8px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",textAlign:"center",background:sel?`${m.color}20`:card,border:`1px solid ${sel?m.color:bdr}`,transition:"all .2s"}}><div style={{fontSize:22,marginBottom:4}}>{m.icon}</div><div style={{fontSize:9,color:sel?m.color:"#555",fontWeight:700,letterSpacing:1}}>{m.label.toUpperCase()}</div></button>);})}
+            </div>
+          </Card>
+          {moods.length>0&&(<Card><Lbl>MOOD HISTORY</Lbl><div style={{display:"flex",flexDirection:"column",gap:4}}>{moods.slice(0,14).map((m,i)=>{const md=MOODS.find(x=>x.v===m.v);return(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"#0A0918",borderRadius:4,border:`1px solid ${bdr}`}}><span style={{fontSize:10,color:"#444"}}>{m.date} · {m.time}</span><span style={{fontSize:11,fontWeight:700,color:md.color}}>{md.icon} {md.label}</span></div>);})}</div></Card>)}
+          {moodRows.length>0&&(<Card><Lbl>MOOD VS PERFORMANCE</Lbl>{moodRows.map(row=>(<div key={row.label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${bdr}`,fontSize:12}}><span style={{color:"#CCC"}}>{row.label}</span><span style={{color:row.wr>=50?"#A8FF78":"#FF4D6D",fontWeight:700}}>{row.wr}% WR on {row.days} day{row.days>1?"s":""}</span></div>))}</Card>)}
+        </div>)}
+
+        {tab==="drawdown"&&(<div>
+          <Card>
+            <Lbl>ACCOUNT SETTINGS</Lbl>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              {[["BALANCE ($)","balance","100000"],["DAILY LIMIT ($)","dailyLimit","1000"],["TODAY'S LOSS ($)","currentLoss","0"]].map(([l,k,ph])=>(<div key={k}><div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>{l}</div><Inp type="number" placeholder={ph} value={dd[k]} onChange={e=>{const u={...dd,[k]:e.target.value};setDd(u);saveData({dd:u});}}/></div>))}
+            </div>
+          </Card>
+          {ddLimit>0&&(<Card>
+            <Lbl>DANGER ZONE GAUGE</Lbl>
+            <div style={{textAlign:"center",marginBottom:16}}><div style={{fontSize:42,fontWeight:900,color:ddPct>=80?"#FF4D6D":ddPct>=50?"#FFD60A":"#A8FF78",textShadow:`0 0 20px ${ddPct>=80?"#FF4D6D":ddPct>=50?"#FFD60A":"#A8FF78"}50`}}>{ddPct}%</div><div style={{fontSize:10,color:"#555",marginTop:4,letterSpacing:2}}>OF DAILY LIMIT USED</div></div>
+            <div style={{background:"#12112A",borderRadius:3,height:12,overflow:"hidden",marginBottom:12}}><div style={{height:"100%",width:`${ddPct}%`,background:ddPct>=80?"linear-gradient(90deg,#FF4D6D,#FF0000)":ddPct>=50?"linear-gradient(90deg,#FFD60A,#FF6B35)":"linear-gradient(90deg,#A8FF78,#00E5FF)",transition:"width .6s",borderRadius:3}}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[["LOSS SO FAR",`$${ddLoss.toLocaleString()}`,ddPct>=80?"#FF4D6D":"#CCC"],["SAFE REMAINING",`$${ddSafe.toLocaleString()}`,ddSafe<=0?"#FF4D6D":"#A8FF78"]].map(([l,v,c])=>(<div key={l} style={{textAlign:"center",padding:"12px",background:"#0A0918",borderRadius:4,border:`1px solid ${bdr}`}}><div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>{l}</div><div style={{fontSize:18,fontWeight:700,color:c}}>{v}</div></div>))}
+            </div>
+            {ddPct>=80&&<div style={{marginTop:12,padding:12,borderRadius:4,background:"#FF4D6D12",border:"1px solid #FF4D6D40",textAlign:"center",fontSize:11,color:"#FF4D6D",fontWeight:700,letterSpacing:2}}>⛔ DANGER ZONE — CONSIDER STOPPING</div>}
+            {ddSafe<=0&&<div style={{marginTop:8,padding:12,borderRadius:4,background:"#FF3B3B20",border:"1px solid #FF3B3B60",textAlign:"center",fontSize:11,color:"#FF3B3B",fontWeight:700,letterSpacing:2}}>🚨 DAILY LIMIT HIT — SESSION CLOSED</div>}
+          </Card>)}
+        </div>)}
+
+        {tab==="edge"&&(<div>
+          <Card>
+            <Lbl>MY A+ SETUP CRITERIA</Lbl>
+            <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
+              {criteria.map((c,i)=>{const done=edgeChecked[i];return(<div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:4,background:done?`${rc}10`:card,border:done?`1px solid ${rc}35`:`1px solid ${bdr}`,transition:"all .18s"}}>
+                <button onClick={()=>setEdgeChecked(p=>({...p,[i]:!p[i]}))} style={{width:16,height:16,flexShrink:0,border:`2px solid ${done?rc:"#2A2840"}`,borderRadius:2,background:done?rc:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .18s",padding:0,fontFamily:"inherit"}}>{done&&<span style={{color:"#000",fontSize:9,fontWeight:900}}>✓</span>}</button>
+                <span style={{flex:1,fontSize:12,color:done?"#555":"#CCC",textDecoration:done?"line-through":"none"}}>{c}</span>
+                <button onClick={()=>{const u=criteria.filter((_,j)=>j!==i);setCriteria(u);saveData({criteria:u});}} style={{background:"transparent",border:"none",color:"#333",cursor:"pointer",fontSize:14,padding:"0 4px"}}>×</button>
+              </div>);})}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <Inp placeholder="Add new criteria..." value={newCrit} onChange={e=>setNewCrit(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newCrit.trim()){const u=[...criteria,newCrit.trim()];setCriteria(u);saveData({criteria:u});setNewCrit("");}}} style={{flex:1}}/>
+              <Btn onClick={()=>{if(newCrit.trim()){const u=[...criteria,newCrit.trim()];setCriteria(u);saveData({criteria:u});setNewCrit("");}}} style={{padding:"9px 16px",flexShrink:0}}>+ ADD</Btn>
+            </div>
+          </Card>
+          <Card>
+            <Lbl>SETUP SCORE</Lbl>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{fontSize:28,fontWeight:700,color:edgeColor}}>{edgePct}%</div>
+              <div style={{fontSize:10,color:"#555",textAlign:"right"}}>{edgeDone}/{criteria.length} criteria met<br/><span style={{color:edgePct>=80?"#A8FF78":"#FF4D6D",fontWeight:700,fontSize:9}}>{edgePct>=80?"✅ A+ SETUP":"❌ NOT AN A+ SETUP"}</span></div>
+            </div>
+            <div style={{background:"#12112A",borderRadius:2,height:5,overflow:"hidden"}}><div style={{height:"100%",width:`${edgePct}%`,background:edgeColor,transition:"width .4s",borderRadius:2}}/></div>
+            <div style={{fontSize:10,color:"#555",marginTop:8}}>Need 80%+ to qualify as an A+ setup.</div>
+            <Btn onClick={()=>setEdgeChecked({})} color="#555" style={{marginTop:10,width:"100%",padding:"8px 0",fontSize:9,letterSpacing:2}}>RESET FOR NEXT TRADE</Btn>
+          </Card>
+        </div>)}
+
+        {tab==="journal"&&(<div>
+          <Card>
+            <Lbl>END-OF-SESSION REVIEW · +{XP_VAL.journal} XP</Lbl>
+            <div style={{background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:14,marginBottom:14,textAlign:"center"}}>
+              <div style={{fontSize:13,color:"#888",lineHeight:1.7,fontStyle:"italic"}}>"Did I follow my rules today,<br/>regardless of outcome?"</div>
+            </div>
+            <div style={{display:"flex",gap:10,marginBottom:14}}>
+              {[{val:true,label:"✅ YES — SUCCESS",c:"#A8FF78"},{val:false,label:"❌ NO — FAILURE",c:"#FF4D6D"}].map(({val,label,c})=>(
+                <button key={String(val)} onClick={()=>setJournal(j=>({...j,followedRules:val}))} style={{flex:1,padding:"12px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:journal.followedRules===val?`${c}20`:card,border:`1px solid ${journal.followedRules===val?`${c}60`:bdr}`,color:journal.followedRules===val?c:"#555",fontSize:11,fontWeight:700,letterSpacing:1,transition:"all .2s"}}>{label}</button>
               ))}
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
-              {[["TOTAL",total,"#888"],["WINS",wins,"#A8FF78"],["LOSSES",losses,"#FF4D6D"],["BE",bes,"#FFD60A"]].map(([l,v,c])=>(
-                <div key={l} style={{background:card,border:`1px solid ${bdr}`,borderRadius:6,padding:"10px",textAlign:"center"}}>
-                  <div style={{fontSize:8,color:"#444",letterSpacing:1,marginBottom:3}}>{l}</div>
-                  <div style={{fontSize:18,fontWeight:700,color:c}}>{v}</div>
-                </div>
-              ))}
-            </div>
-            <Card>
-              <Lbl>LOG NEW TRADE · +{XP_VAL.trade} XP</Lbl>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                <div>
-                  <div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>PAIR</div>
-                  <select value={tradeForm.pair} onChange={e=>setTradeForm(p=>({...p,pair:e.target.value}))} style={{background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:"9px 12px",color:"#CCC",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%"}}>
-                    {PAIRS.map(p=><option key={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>DIRECTION</div>
-                  <div style={{display:"flex",gap:6}}>
-                    {["Long","Short"].map(d=>(
-                      <button key={d} onClick={()=>setTradeForm(p=>({...p,dir:d}))} style={{flex:1,padding:"9px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${tradeForm.dir===d?(d==="Long"?"#A8FF78":"#FF4D6D"):bdr}`,background:tradeForm.dir===d?(d==="Long"?"#A8FF7815":"#FF4D6D15"):card,color:tradeForm.dir===d?(d==="Long"?"#A8FF78":"#FF4D6D"):"#555",fontSize:11,fontWeight:700}}>{d}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                <div>
-                  <div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>RR ACHIEVED</div>
-                  <Inp type="number" step="0.1" min="0" placeholder="e.g. 2.5" value={tradeForm.rr} onChange={e=>setTradeForm(p=>({...p,rr:e.target.value}))}/>
-                </div>
-                <div>
-                  <div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>OUTCOME</div>
-                  <div style={{display:"flex",gap:4}}>
-                    {["Win","Loss","BE"].map(o=>{
-                      const oc=o==="Win"?"#A8FF78":o==="Loss"?"#FF4D6D":"#FFD60A";
-                      return<button key={o} onClick={()=>setTradeForm(p=>({...p,outcome:o}))} style={{flex:1,padding:"9px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",border:`1px solid ${tradeForm.outcome===o?oc:bdr}`,background:tradeForm.outcome===o?`${oc}15`:card,color:tradeForm.outcome===o?oc:"#555",fontSize:10,fontWeight:700}}>{o}</button>;
-                    })}
-                  </div>
-                </div>
-              </div>
-              <Inp placeholder="Notes (optional)" value={tradeForm.note} onChange={e=>setTradeForm(p=>({...p,note:e.target.value}))} style={{marginBottom:8}}/>
-              <Btn onClick={logTrade} style={{width:"100%",padding:"11px 0"}}>LOG TRADE</Btn>
-            </Card>
-            {trades.length>0&&(
-              <div>
-                <Lbl>TRADE HISTORY</Lbl>
-                <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {trades.map(t=>{
-                    const oc=t.outcome==="Win"?"#A8FF78":t.outcome==="Loss"?"#FF4D6D":"#FFD60A";
-                    return(
-                      <div key={t.id} style={{background:card,border:`1px solid ${bdr}`,borderRadius:4,padding:"10px 13px",display:"flex",alignItems:"center",gap:10}}>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:12,color:"#CCC",fontWeight:700}}>{t.pair} <span style={{color:t.dir==="Long"?"#A8FF78":"#FF4D6D",fontSize:10}}>{t.dir}</span></div>
-                          {t.note&&<div style={{fontSize:10,color:"#555",marginTop:2}}>{t.note}</div>}
-                        </div>
-                        <div style={{textAlign:"right"}}>
-                          <div style={{fontSize:11,color:oc,fontWeight:700}}>{t.outcome}</div>
-                          <div style={{fontSize:9,color:"#444"}}>RR {t.rr} · {t.time}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab==="timers"&&(
-          <div>
-            <Card>
-              <Lbl>SESSION TIMER — 2 HOUR LIMIT</Lbl>
-              <div style={{textAlign:"center",marginBottom:14}}>
-                <div style={{fontSize:52,fontWeight:900,color:session.secs<1800?"#FF4D6D":session.secs<3600?"#FFD60A":"#A8FF78",letterSpacing:4,textShadow:`0 0 20px ${session.secs<1800?"#FF4D6D":session.secs<3600?"#FFD60A":"#A8FF78"}40`}}>{session.fmt(session.secs)}</div>
-                <div style={{fontSize:9,color:"#444",marginTop:4,letterSpacing:2}}>{session.secs<1800?"⚠ DECISION FATIGUE ZONE — WRAP UP":session.secs<3600?"APPROACHING LIMIT":"SESSION ACTIVE"}</div>
-              </div>
-              <div style={{background:"#12112A",borderRadius:2,height:5,overflow:"hidden",marginBottom:12}}>
-                <div style={{height:"100%",width:`${Math.round((1-session.secs/7200)*100)}%`,background:session.secs<1800?"#FF4D6D":session.secs<3600?"#FFD60A":"#A8FF78",transition:"width 1s",borderRadius:2}}/>
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <Btn onClick={()=>session.setRunning(r=>!r)} color={session.running?"#FFD60A":"#A8FF78"} style={{flex:1,padding:"10px 0"}}>{session.running?"⏸ PAUSE":"▶ START"}</Btn>
-                <Btn onClick={()=>session.reset(7200)} color="#555" style={{padding:"10px 16px"}}>↺ RESET</Btn>
-              </div>
-            </Card>
-            <Card>
-              <Lbl>REVENGE TRADE COOLDOWN — 1 HOUR RULE</Lbl>
-              <div style={{textAlign:"center",marginBottom:14}}>
-                <div style={{fontSize:52,fontWeight:900,letterSpacing:4,color:revenge.running?(revenge.secs>1800?"#FF4D6D":"#FFD60A"):"#333",textShadow:revenge.running?`0 0 20px ${revenge.secs>1800?"#FF4D6D":"#FFD60A"}40`:"none"}}>{revenge.fmt(revenge.secs)}</div>
-                <div style={{fontSize:9,color:"#444",marginTop:4,letterSpacing:2}}>{revenge.running?(revenge.secs>1800?"🔴 LOCKED — DO NOT TRADE":"🟡 COOLING DOWN — ALMOST CLEAR"):(revenge.secs===0?"✅ COOLDOWN COMPLETE — YOU MAY TRADE":"TRIGGER AFTER A LOSS")}</div>
-              </div>
-              <div style={{background:"#12112A",borderRadius:2,height:5,overflow:"hidden",marginBottom:12}}>
-                <div style={{height:"100%",width:`${Math.round((1-revenge.secs/3600)*100)}%`,background:revenge.secs>1800?"#FF4D6D":"#FFD60A",transition:"width 1s",borderRadius:2}}/>
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <Btn onClick={()=>{revenge.reset(3600);revenge.setRunning(true);}} color="#FF4D6D" style={{flex:1,padding:"10px 0"}}>🚨 I JUST TOOK A LOSS</Btn>
-                <Btn onClick={()=>revenge.reset(3600)} color="#555" style={{padding:"10px 16px"}}>↺</Btn>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {tab==="weekly"&&(
-          <div>
-            <Lbl>WEEK STARTING {weekKey}</Lbl>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-              {[["DISCIPLINED DAYS",weekDisciplined,"#A8FF78"],["RULE BREAKS",weekBroken,"#FF4D6D"],["TRADES",weekTrades.length,rc],["WIN RATE",weekTrades.length?`${weekWR}%`:"—",weekWR>=50?"#A8FF78":"#FF4D6D"]].map(([l,v,c])=>(
-                <div key={l} style={{background:card,border:`1px solid ${bdr}`,borderRadius:6,padding:"14px",textAlign:"center"}}>
-                  <div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>{l}</div>
-                  <div style={{fontSize:26,fontWeight:700,color:c}}>{v}</div>
-                </div>
-              ))}
-            </div>
-            {topBroken.length>0&&(
-              <Card>
-                <Lbl>TOP BROKEN RULES THIS WEEK</Lbl>
-                {topBroken.map(([rule,count])=>(
-                  <div key={rule} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${bdr}`}}>
-                    <span style={{fontSize:12,color:"#CCC"}}>{rule}</span>
-                    <span style={{fontSize:11,fontWeight:700,color:"#FF4D6D",letterSpacing:1}}>{count}x</span>
-                  </div>
-                ))}
-              </Card>
-            )}
-            {weekTrades.length>0&&(
-              <Card>
-                <Lbl>THIS WEEK'S TRADES</Lbl>
-                {weekTrades.map(t=>{
-                  const oc=t.outcome==="Win"?"#A8FF78":t.outcome==="Loss"?"#FF4D6D":"#FFD60A";
-                  return(
-                    <div key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${bdr}`}}>
-                      <span style={{fontSize:12,color:"#CCC"}}>{t.pair} <span style={{fontSize:10,color:t.dir==="Long"?"#A8FF78":"#FF4D6D"}}>{t.dir}</span></span>
-                      <div><span style={{fontSize:11,fontWeight:700,color:oc}}>{t.outcome}</span><span style={{fontSize:9,color:"#444",marginLeft:8}}>RR {t.rr}</span></div>
-                    </div>
-                  );
-                })}
-              </Card>
-            )}
-            {weekJournals.length===0&&weekTrades.length===0&&<div style={{textAlign:"center",padding:40,color:"#333",fontSize:12,letterSpacing:2}}>NO DATA YET THIS WEEK.</div>}
-          </div>
-        )}
-
-        {tab==="mood"&&(
-          <div>
-            <Card>
-              <Lbl>PRE-SESSION MENTAL STATE · +{XP_VAL.mood} XP</Lbl>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {MOODS.map(m=>{
-                  const sel=moods[0]?.date===today&&moods[0]?.v===m.v;
-                  return(
-                    <button key={m.v} onClick={()=>logMood(m.v)} style={{flex:1,minWidth:80,padding:"14px 8px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",textAlign:"center",background:sel?`${m.color}20`:card,border:`1px solid ${sel?m.color:bdr}`,transition:"all .2s"}}>
-                      <div style={{fontSize:22,marginBottom:4}}>{m.icon}</div>
-                      <div style={{fontSize:9,color:sel?m.color:"#555",fontWeight:700,letterSpacing:1}}>{m.label.toUpperCase()}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
-            {moods.length>0&&(
-              <Card>
-                <Lbl>MOOD HISTORY</Lbl>
-                <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {moods.slice(0,14).map((m,i)=>{
-                    const md=MOODS.find(x=>x.v===m.v);
-                    return(
-                      <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"#0A0918",borderRadius:4,border:`1px solid ${bdr}`}}>
-                        <span style={{fontSize:10,color:"#444"}}>{m.date} · {m.time}</span>
-                        <span style={{fontSize:11,fontWeight:700,color:md.color}}>{md.icon} {md.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
-            {moodInsightRows.length>0&&(
-              <Card>
-                <Lbl>MOOD VS PERFORMANCE</Lbl>
-                {moodInsightRows.map(row=>(
-                  <div key={row.label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${bdr}`,fontSize:12}}>
-                    <span style={{color:"#CCC"}}>{row.label}</span>
-                    <span style={{color:row.wr>=50?"#A8FF78":"#FF4D6D",fontWeight:700}}>{row.wr}% WR on {row.days} day{row.days>1?"s":""}</span>
-                  </div>
-                ))}
-              </Card>
-            )}
-          </div>
-        )}
-
-        {tab==="drawdown"&&(
-          <div>
-            <Card>
-              <Lbl>ACCOUNT SETTINGS</Lbl>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                {[["BALANCE ($)","balance","100000"],["DAILY LIMIT ($)","dailyLimit","1000"],["TODAY'S LOSS ($)","currentLoss","0"]].map(([l,k,ph])=>(
-                  <div key={k}>
-                    <div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>{l}</div>
-                    <Inp type="number" placeholder={ph} value={dd[k]} onChange={e=>setDd(p=>({...p,[k]:e.target.value}))}/>
-                  </div>
-                ))}
-              </div>
-            </Card>
-            {ddLimit>0&&(
-              <Card>
-                <Lbl>DANGER ZONE GAUGE</Lbl>
-                <div style={{textAlign:"center",marginBottom:16}}>
-                  <div style={{fontSize:42,fontWeight:900,color:ddPct>=80?"#FF4D6D":ddPct>=50?"#FFD60A":"#A8FF78",textShadow:`0 0 20px ${ddPct>=80?"#FF4D6D":ddPct>=50?"#FFD60A":"#A8FF78"}50`}}>{ddPct}%</div>
-                  <div style={{fontSize:10,color:"#555",marginTop:4,letterSpacing:2}}>OF DAILY LIMIT USED</div>
-                </div>
-                <div style={{background:"#12112A",borderRadius:3,height:12,overflow:"hidden",marginBottom:12}}>
-                  <div style={{height:"100%",width:`${ddPct}%`,background:ddPct>=80?"linear-gradient(90deg,#FF4D6D,#FF0000)":ddPct>=50?"linear-gradient(90deg,#FFD60A,#FF6B35)":"linear-gradient(90deg,#A8FF78,#00E5FF)",transition:"width .6s",borderRadius:3}}/>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {[["LOSS SO FAR",`$${ddLoss.toLocaleString()}`,ddPct>=80?"#FF4D6D":"#CCC"],["SAFE REMAINING",`$${ddSafe.toLocaleString()}`,ddSafe<=0?"#FF4D6D":"#A8FF78"]].map(([l,v,c])=>(
-                    <div key={l} style={{textAlign:"center",padding:"12px",background:"#0A0918",borderRadius:4,border:`1px solid ${bdr}`}}>
-                      <div style={{fontSize:8,color:"#444",letterSpacing:2,marginBottom:4}}>{l}</div>
-                      <div style={{fontSize:18,fontWeight:700,color:c}}>{v}</div>
-                    </div>
-                  ))}
-                </div>
-                {ddPct>=80&&<div style={{marginTop:12,padding:12,borderRadius:4,background:"#FF4D6D12",border:"1px solid #FF4D6D40",textAlign:"center",fontSize:11,color:"#FF4D6D",fontWeight:700,letterSpacing:2}}>⛔ DANGER ZONE — CONSIDER STOPPING</div>}
-                {ddSafe<=0&&<div style={{marginTop:8,padding:12,borderRadius:4,background:"#FF3B3B20",border:"1px solid #FF3B3B60",textAlign:"center",fontSize:11,color:"#FF3B3B",fontWeight:700,letterSpacing:2}}>🚨 DAILY LIMIT HIT — SESSION CLOSED</div>}
-              </Card>
-            )}
-          </div>
-        )}
-
-        {tab==="edge"&&(
-          <div>
-            <Card>
-              <Lbl>MY A+ SETUP CRITERIA</Lbl>
-              <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
-                {criteria.map((c,i)=>{
-                  const done=edgeChecked[i];
-                  return(
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:4,background:done?`${rc}10`:card,border:done?`1px solid ${rc}35`:`1px solid ${bdr}`,transition:"all .18s"}}>
-                      <button onClick={()=>setEdgeChecked(p=>({...p,[i]:!p[i]}))} style={{width:16,height:16,flexShrink:0,border:`2px solid ${done?rc:"#2A2840"}`,borderRadius:2,background:done?rc:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .18s",padding:0,fontFamily:"inherit"}}>
-                        {done&&<span style={{color:"#000",fontSize:9,fontWeight:900}}>✓</span>}
-                      </button>
-                      <span style={{flex:1,fontSize:12,color:done?"#555":"#CCC",textDecoration:done?"line-through":"none"}}>{c}</span>
-                      <button onClick={()=>setCriteria(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",color:"#333",cursor:"pointer",fontSize:14,padding:"0 4px"}}>×</button>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <Inp placeholder="Add new criteria..." value={newCrit} onChange={e=>setNewCrit(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newCrit.trim()){setCriteria(p=>[...p,newCrit.trim()]);setNewCrit("");}}} style={{flex:1}}/>
-                <Btn onClick={()=>{if(newCrit.trim()){setCriteria(p=>[...p,newCrit.trim()]);setNewCrit("");}}} style={{padding:"9px 16px",flexShrink:0}}>+ ADD</Btn>
-              </div>
-            </Card>
-            <Card>
-              <Lbl>SETUP SCORE</Lbl>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div style={{fontSize:28,fontWeight:700,color:edgeColor}}>{edgePct}%</div>
-                <div style={{fontSize:10,color:"#555",textAlign:"right"}}>
-                  {edgeDone}/{criteria.length} criteria met<br/>
-                  <span style={{color:edgePct>=80?"#A8FF78":"#FF4D6D",fontWeight:700,fontSize:9}}>{edgePct>=80?"✅ A+ SETUP":"❌ NOT AN A+ SETUP"}</span>
-                </div>
-              </div>
-              <div style={{background:"#12112A",borderRadius:2,height:5,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${edgePct}%`,background:edgeColor,transition:"width .4s",borderRadius:2}}/>
-              </div>
-              <div style={{fontSize:10,color:"#555",marginTop:8}}>Need 80%+ to qualify as an A+ setup.</div>
-              <Btn onClick={()=>setEdgeChecked({})} color="#555" style={{marginTop:10,width:"100%",padding:"8px 0",fontSize:9,letterSpacing:2}}>RESET FOR NEXT TRADE</Btn>
-            </Card>
-          </div>
-        )}
-
-        {tab==="journal"&&(
-          <div>
-            <Card>
-              <Lbl>END-OF-SESSION REVIEW · +{XP_VAL.journal} XP</Lbl>
-              <div style={{background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:14,marginBottom:14,textAlign:"center"}}>
-                <div style={{fontSize:13,color:"#888",lineHeight:1.7,fontStyle:"italic"}}>"Did I follow my rules today,<br/>regardless of outcome?"</div>
-              </div>
-              <div style={{display:"flex",gap:10,marginBottom:14}}>
-                {[{val:true,label:"✅ YES — SUCCESS",c:"#A8FF78"},{val:false,label:"❌ NO — FAILURE",c:"#FF4D6D"}].map(({val,label,c})=>(
-                  <button key={String(val)} onClick={()=>setJournal(j=>({...j,followedRules:val}))} style={{flex:1,padding:"12px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:journal.followedRules===val?`${c}20`:card,border:`1px solid ${journal.followedRules===val?`${c}60`:bdr}`,color:journal.followedRules===val?c:"#555",fontSize:11,fontWeight:700,letterSpacing:1,transition:"all .2s"}}>{label}</button>
-                ))}
-              </div>
-              {journal.followedRules===false&&(
-                <div style={{marginBottom:12}}>
-                  <Lbl>WHICH RULES DID YOU BREAK?</Lbl>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                    {["Revenge trade","FOMO entry","Moved SL","Overtraded","Wrong size","No confluence","Emotional"].map(rule=>{
-                      const sel=journal.brokenRules.includes(rule);
-                      return<button key={rule} onClick={()=>setJournal(j=>({...j,brokenRules:sel?j.brokenRules.filter(r=>r!==rule):[...j.brokenRules,rule]}))} style={{padding:"5px 10px",borderRadius:3,cursor:"pointer",fontFamily:"inherit",background:sel?"#FF4D6D20":"#0A0918",border:`1px solid ${sel?"#FF4D6D60":bdr}`,color:sel?"#FF4D6D":"#555",fontSize:10,letterSpacing:1}}>{rule}</button>;
-                    })}
-                  </div>
-                </div>
-              )}
-              <textarea value={journal.note} onChange={e=>setJournal(j=>({...j,note:e.target.value}))} placeholder="Notes (what happened, what you learned...)" style={{width:"100%",background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:12,color:"#CCC",fontSize:12,fontFamily:"inherit",resize:"vertical",minHeight:80,boxSizing:"border-box",outline:"none",lineHeight:1.6,marginBottom:10}}/>
-              <button onClick={saveJournal} disabled={journal.followedRules===null} style={{width:"100%",padding:"12px 0",borderRadius:4,cursor:journal.followedRules===null?"not-allowed":"pointer",background:journal.followedRules===null?"#0A0918":`${rc}15`,border:`1px solid ${journal.followedRules===null?bdr:`${rc}40`}`,color:journal.followedRules===null?"#333":rc,fontSize:11,fontWeight:700,letterSpacing:2,fontFamily:"inherit",transition:"all .2s"}}>
-                SAVE JOURNAL ENTRY · +{XP_VAL.journal} XP
-              </button>
-            </Card>
-            {journals.length>0&&(
-              <div>
-                <Lbl>PAST ENTRIES</Lbl>
-                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {journals.map((e,i)=>(
-                    <div key={i} style={{background:card,border:`1px solid ${e.followedRules?"#A8FF7825":"#FF4D6D25"}`,borderRadius:4,padding:"11px 13px"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                        <span style={{fontSize:9,color:"#444"}}>{e.date} · {e.time}</span>
-                        <span style={{fontSize:9,fontWeight:700,letterSpacing:1,color:e.followedRules?"#A8FF78":"#FF4D6D"}}>{e.followedRules?"✓ DISCIPLINED":"✗ BROKE RULES"}</span>
-                      </div>
-                      {e.brokenRules?.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:5}}>{e.brokenRules.map(r=><span key={r} style={{fontSize:9,background:"#FF4D6D15",border:"1px solid #FF4D6D30",color:"#FF4D6D",padding:"2px 6px",borderRadius:2}}>{r}</span>)}</div>}
-                      {e.note&&<div style={{fontSize:11,color:"#555",lineHeight:1.5,fontStyle:"italic"}}>"{e.note}"</div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            {journal.followedRules===false&&(<div style={{marginBottom:12}}><Lbl>WHICH RULES DID YOU BREAK?</Lbl><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{["Revenge trade","FOMO entry","Moved SL","Overtraded","Wrong size","No confluence","Emotional"].map(rule=>{const sel=journal.brokenRules.includes(rule);return<button key={rule} onClick={()=>setJournal(j=>({...j,brokenRules:sel?j.brokenRules.filter(r=>r!==rule):[...j.brokenRules,rule]}))} style={{padding:"5px 10px",borderRadius:3,cursor:"pointer",fontFamily:"inherit",background:sel?"#FF4D6D20":"#0A0918",border:`1px solid ${sel?"#FF4D6D60":bdr}`,color:sel?"#FF4D6D":"#555",fontSize:10,letterSpacing:1}}>{rule}</button>;})}</div></div>)}
+            <textarea value={journal.note} onChange={e=>setJournal(j=>({...j,note:e.target.value}))} placeholder="Notes (what happened, what you learned...)" style={{width:"100%",background:"#0A0918",border:`1px solid ${bdr}`,borderRadius:4,padding:12,color:"#CCC",fontSize:12,fontFamily:"inherit",resize:"vertical",minHeight:80,boxSizing:"border-box",outline:"none",lineHeight:1.6,marginBottom:10}}/>
+            <button onClick={saveJournal} disabled={journal.followedRules===null} style={{width:"100%",padding:"12px 0",borderRadius:4,cursor:journal.followedRules===null?"not-allowed":"pointer",background:journal.followedRules===null?"#0A0918":`${rc}15`,border:`1px solid ${journal.followedRules===null?bdr:`${rc}40`}`,color:journal.followedRules===null?"#333":rc,fontSize:11,fontWeight:700,letterSpacing:2,fontFamily:"inherit",transition:"all .2s"}}>
+              SAVE JOURNAL ENTRY · +{XP_VAL.journal} XP
+            </button>
+          </Card>
+          {journals.length>0&&(<div><Lbl>PAST ENTRIES</Lbl><div style={{display:"flex",flexDirection:"column",gap:6}}>{journals.map((e,i)=>(<div key={i} style={{background:card,border:`1px solid ${e.followedRules?"#A8FF7825":"#FF4D6D25"}`,borderRadius:4,padding:"11px 13px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><span style={{fontSize:9,color:"#444"}}>{e.date} · {e.time}</span><span style={{fontSize:9,fontWeight:700,letterSpacing:1,color:e.followedRules?"#A8FF78":"#FF4D6D"}}>{e.followedRules?"✓ DISCIPLINED":"✗ BROKE RULES"}</span></div>{e.brokenRules?.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:5}}>{e.brokenRules.map(r=><span key={r} style={{fontSize:9,background:"#FF4D6D15",border:"1px solid #FF4D6D30",color:"#FF4D6D",padding:"2px 6px",borderRadius:2}}>{r}</span>)}</div>}{e.note&&<div style={{fontSize:11,color:"#555",lineHeight:1.5,fontStyle:"italic"}}>"{e.note}"</div>}</div>))}</div></div>)}
+        </div>)}
 
       </div>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+function Root(){
+  const[user,setUser]=useState(null);
+  const[checking,setChecking]=useState(true);
+  useEffect(()=>{
+    sb.auth.getSession().then(({data:{session}})=>{setUser(session?.user||null);setChecking(false);});
+    const{data:{subscription}}=sb.auth.onAuthStateChange((_,session)=>{setUser(session?.user||null);});
+    return()=>subscription.unsubscribe();
+  },[]);
+  if(checking){return(<div style={{minHeight:"100vh",background:"#07070F",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}><Spinner color="#9B6DFF"/><div style={{fontSize:10,color:"#444",letterSpacing:3}}>INITIALISING...</div></div>);}
+  if(!user)return<AuthScreen onAuth={setUser}/>;
+  return<TraderApp user={user} onLogout={()=>setUser(null)}/>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Root/>);
 </script>
 </body>
 </html>
